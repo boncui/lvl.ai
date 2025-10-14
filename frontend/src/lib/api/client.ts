@@ -13,7 +13,7 @@ import {
 } from '@/types';
 
 class ApiClient {
-  private client: AxiosInstance;
+  public client: AxiosInstance;
   private token: string | null = null;
 
   constructor() {

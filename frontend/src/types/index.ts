@@ -258,6 +258,23 @@ export interface TaskFormData {
   cost?: number;
 }
 
+export interface LoginFormData {
+  email: string;
+  password: string;
+}
+
+export interface RegisterFormData {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface UserProfileFormData {
+  name: string;
+  email: string;
+  preferences: UserPreferences;
+}
+
 // UI Component Types
 export interface SelectOption {
   value: string;
