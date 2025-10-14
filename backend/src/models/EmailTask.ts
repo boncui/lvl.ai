@@ -18,6 +18,15 @@ export interface IEmailTask extends IBaseTask {
   replyReceived?: boolean;
   followUpDate?: Date;
   emailTemplate?: string; // Template used for this email
+  
+  // Virtual properties
+  isOverdue: boolean;
+  needsFollowUp: boolean;
+  
+  // Methods
+  markAsSent(): Promise<this>;
+  markReplyReceived(): Promise<this>;
+  scheduleFollowUp(followUpDate: Date): Promise<this>;
 }
 
 // ---------- EMAIL TASK SCHEMA ----------

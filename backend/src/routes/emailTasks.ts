@@ -2,7 +2,6 @@ import express, { NextFunction, Request, Response, Router, RequestHandler } from
 import { check, validationResult } from 'express-validator';
 import authenticate, { AuthenticatedRequest } from '../middleware/auth';
 import EmailTask from '../models/EmailTask';
-import User from '../models/User';
 
 // Helper function for async error handling
 const asyncHandler =
@@ -29,7 +28,7 @@ const mustOwnEmailTask = (): RequestHandler =>
       return;
     }
 
-    const taskId = req.params.id;
+    const taskId = req.params['id'];
     
     try {
       const task = await EmailTask.findById(taskId);
@@ -223,7 +222,7 @@ router.get('/:id', authenticate, mustOwnEmailTask(), asyncHandler(async (req: Au
 // @access  Private
 router.put('/:id', authenticate, mustOwnEmailTask(), emailTaskValidation, handleValidationErrors, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const updatedEmailTask = await EmailTask.findByIdAndUpdate(
-    req.params.id,
+    req.params['id'],
     { ...req.body },
     { new: true, runValidators: true }
   );
@@ -235,7 +234,7 @@ router.put('/:id', authenticate, mustOwnEmailTask(), emailTaskValidation, handle
 // @desc    Delete a specific email task
 // @access  Private
 router.delete('/:id', authenticate, mustOwnEmailTask(), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  await EmailTask.findByIdAndDelete(req.params.id);
+  await EmailTask.findByIdAndDelete(req.params['id']);
   res.status(200).json({ message: 'Email task deleted successfully' });
 }));
 
@@ -244,7 +243,7 @@ router.delete('/:id', authenticate, mustOwnEmailTask(), asyncHandler(async (req:
 // @access  Private
 router.post('/:id/mark-sent', authenticate, mustOwnEmailTask(), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   await req.emailTask!.markAsSent();
-  const updatedTask = await EmailTask.findById(req.params.id);
+  const updatedTask = await EmailTask.findById(req.params['id']);
   
   res.status(200).json(updatedTask);
 }));
@@ -254,7 +253,7 @@ router.post('/:id/mark-sent', authenticate, mustOwnEmailTask(), asyncHandler(asy
 // @access  Private
 router.post('/:id/mark-reply-received', authenticate, mustOwnEmailTask(), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   await req.emailTask!.markReplyReceived();
-  const updatedTask = await EmailTask.findById(req.params.id);
+  const updatedTask = await EmailTask.findById(req.params['id']);
   
   res.status(200).json(updatedTask);
 }));
@@ -277,7 +276,7 @@ router.post('/:id/schedule-follow-up', authenticate, mustOwnEmailTask(), asyncHa
   }
 
   await req.emailTask!.scheduleFollowUp(date);
-  const updatedTask = await EmailTask.findById(req.params.id);
+  const updatedTask = await EmailTask.findById(req.params['id']);
   
   res.status(200).json(updatedTask);
 }));

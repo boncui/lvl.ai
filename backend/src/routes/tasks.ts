@@ -13,10 +13,6 @@ import MeetingTask from '../models/MeetingTask';
 import ProjectTask from '../models/ProjectTask';
 import PersonalTask from '../models/PersonalTask';
 import WorkTask from '../models/WorkTask';
-import HealthTask from '../models/HealthTask';
-import SocialTask from '../models/SocialTask';
-import OtherTask from '../models/OtherTask';
-
 // Helper function for async error handling
 const asyncHandler =
   (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>): RequestHandler =>
@@ -73,15 +69,6 @@ const mustOwnTask = (): RequestHandler =>
           break;
         case TaskType.WORK:
           task = await WorkTask.findById(taskId);
-          break;
-        case TaskType.HEALTH:
-          task = await HealthTask.findById(taskId);
-          break;
-        case TaskType.SOCIAL:
-          task = await SocialTask.findById(taskId);
-          break;
-        case TaskType.OTHER:
-          task = await OtherTask.findById(taskId);
           break;
         default:
           res.status(400).json({ error: 'Invalid task type' });
@@ -182,9 +169,6 @@ router.get('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res
     projectTasks,
     personalTasks,
     workTasks,
-    healthTasks,
-    socialTasks,
-    otherTasks
   ] = await Promise.all([
     FoodTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 }),
     HomeworkTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 }),
@@ -193,9 +177,6 @@ router.get('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res
     ProjectTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 }),
     PersonalTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 }),
     WorkTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 }),
-    HealthTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 }),
-    SocialTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 }),
-    OtherTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 })
   ]);
 
   const allTasks = [
@@ -206,9 +187,6 @@ router.get('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res
     ...projectTasks,
     ...personalTasks,
     ...workTasks,
-    ...healthTasks,
-    ...socialTasks,
-    ...otherTasks
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   res.status(200).json({
@@ -235,9 +213,6 @@ router.get('/stats', authenticate, asyncHandler(async (req: AuthenticatedRequest
     projectTasks,
     personalTasks,
     workTasks,
-    healthTasks,
-    socialTasks,
-    otherTasks
   ] = await Promise.all([
     FoodTask.find({ assignee: userId }),
     HomeworkTask.find({ assignee: userId }),
@@ -246,9 +221,6 @@ router.get('/stats', authenticate, asyncHandler(async (req: AuthenticatedRequest
     ProjectTask.find({ assignee: userId }),
     PersonalTask.find({ assignee: userId }),
     WorkTask.find({ assignee: userId }),
-    HealthTask.find({ assignee: userId }),
-    SocialTask.find({ assignee: userId }),
-    OtherTask.find({ assignee: userId })
   ]);
 
   const allTasks = [
@@ -259,9 +231,6 @@ router.get('/stats', authenticate, asyncHandler(async (req: AuthenticatedRequest
     ...projectTasks,
     ...personalTasks,
     ...workTasks,
-    ...healthTasks,
-    ...socialTasks,
-    ...otherTasks
   ];
 
   const stats = {
@@ -274,9 +243,6 @@ router.get('/stats', authenticate, asyncHandler(async (req: AuthenticatedRequest
       project: projectTasks.length,
       personal: personalTasks.length,
       work: workTasks.length,
-      health: healthTasks.length,
-      social: socialTasks.length,
-      other: otherTasks.length
     },
     byStatus: {
       pending: allTasks.filter(t => t.status === TaskStatus.PENDING).length,
@@ -332,15 +298,6 @@ router.post('/', authenticate, baseTaskValidation, handleValidationErrors, async
       break;
     case TaskType.WORK:
       task = new WorkTask({ ...taskData, assignee: req.user!._id, taskType });
-      break;
-    case TaskType.HEALTH:
-      task = new HealthTask({ ...taskData, assignee: req.user!._id, taskType });
-      break;
-    case TaskType.SOCIAL:
-      task = new SocialTask({ ...taskData, assignee: req.user!._id, taskType });
-      break;
-    case TaskType.OTHER:
-      task = new OtherTask({ ...taskData, assignee: req.user!._id, taskType });
       break;
     default:
       res.status(400).json({ error: 'Invalid task type' });
@@ -417,15 +374,6 @@ router.get('/:taskType', authenticate, asyncHandler(async (req: AuthenticatedReq
       break;
     case TaskType.WORK:
       tasks = await WorkTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 });
-      break;
-    case TaskType.HEALTH:
-      tasks = await HealthTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 });
-      break;
-    case TaskType.SOCIAL:
-      tasks = await SocialTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 });
-      break;
-    case TaskType.OTHER:
-      tasks = await OtherTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 });
       break;
     default:
       res.status(400).json({ error: 'Invalid task type' });

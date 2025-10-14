@@ -10,9 +10,6 @@ import meetingTasksRoutes from './meetingTasks';
 import projectTasksRoutes from './projectTasks';
 import personalTasksRoutes from './personalTasks';
 import workTasksRoutes from './workTasks';
-import healthTasksRoutes from './healthTasks';
-import socialTasksRoutes from './socialTasks';
-import otherTasksRoutes from './otherTasks';
 
 const router = Router();
 
@@ -60,8 +57,5 @@ router.use('/meeting-tasks', meetingTasksRoutes);
 router.use('/project-tasks', projectTasksRoutes);
 router.use('/personal-tasks', personalTasksRoutes);
 router.use('/work-tasks', workTasksRoutes);
-router.use('/health-tasks', healthTasksRoutes);
-router.use('/social-tasks', socialTasksRoutes);
-router.use('/other-tasks', otherTasksRoutes);
 
 export default router;
