@@ -1,6 +1,6 @@
 import { AxiosResponse } from 'axios';
 import apiClient from './client';
-import { ApiResponse, User } from '@/types';
+import { ApiResponse, User } from '@/lib/types';
 
 // Friends API endpoints based on backend routes
 export class FriendsAPI {

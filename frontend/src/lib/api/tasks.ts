@@ -1,6 +1,6 @@
 import { AxiosResponse } from 'axios';
 import apiClient from './client';
-import { ApiResponse, PaginatedResponse, BaseTask, TaskType } from '@/types';
+import { ApiResponse, PaginatedResponse, BaseTask, TaskType } from '@/lib/types';
 
 // General Task specific types
 export interface PersonalTask extends BaseTask {

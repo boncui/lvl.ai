@@ -1,6 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { UserAPI } from '@/lib/api/users';
-import { UserProfileFormData } from '@/types';
+import { UserProfileFormData } from '@/lib/types';
 
 // Hook for current user operations
 export function useCurrentUserAPI() {

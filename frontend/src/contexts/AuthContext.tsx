@@ -10,7 +10,7 @@ import React, {
   useRef,
 } from 'react';
 import { useRouter } from 'next/navigation';
-import { User } from '@/types';
+import { User } from '@/lib/types';
 import apiClient from '@/lib/api/client';
 import type { InternalAxiosRequestConfig } from 'axios';
 import { isAxiosError } from 'axios';

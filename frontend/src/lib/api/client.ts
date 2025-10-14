@@ -10,7 +10,7 @@ import {
   TaskFormData,
   TaskFilters,
   SortOption
-} from '@/types';
+} from '@/lib/types';
 
 class ApiClient {
   public client: AxiosInstance;

@@ -8,7 +8,7 @@ import {
   Metric, 
   LevelProgress,
   UserProfileFormData 
-} from '@/types';
+} from '@/lib/types';
 
 // User API endpoints based on backend routes
 export class UserAPI {

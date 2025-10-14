@@ -43,7 +43,7 @@ export type {
   RegisterFormData,
   TaskFormData,
   FriendRequests,
-} from '../../types';
+} from '../types';
 
 // Re-export task-specific types
 export type {

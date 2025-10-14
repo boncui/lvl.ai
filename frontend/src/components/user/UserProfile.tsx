@@ -6,7 +6,7 @@ import { useCurrentUserAPI } from '@/hooks/useUserAPI';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { User, BaseTask, Metric, LevelProgress } from '@/types';
+import { User, BaseTask, Metric, LevelProgress } from '@/lib/types';
 import { 
   UserIcon, 
   TrophyIcon, 
