@@ -11,7 +11,7 @@ import HomeworkTask from '../models/HomeworkTask';
 import EmailTask from '../models/EmailTask';
 import MeetingTask from '../models/MeetingTask';
 import ProjectTask from '../models/ProjectTask';
-import PersonalTask from '../models/PersonalTask';
+import Task from '../models/Task';
 import WorkTask from '../models/WorkTask';
 // Helper function for async error handling
 const asyncHandler =
@@ -65,7 +65,7 @@ const mustOwnTask = (): RequestHandler =>
           task = await ProjectTask.findById(taskId);
           break;
         case TaskType.PERSONAL:
-          task = await PersonalTask.findById(taskId);
+          task = await Task.findOne({ _id: taskId, taskType: TaskType.PERSONAL });
           break;
         case TaskType.WORK:
           task = await WorkTask.findById(taskId);
@@ -175,7 +175,7 @@ router.get('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res
     EmailTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 }),
     MeetingTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 }),
     ProjectTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 }),
-    PersonalTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 }),
+    Task.find({ ...query, taskType: TaskType.PERSONAL }).skip(skip).limit(Number(limit)).sort({ createdAt: -1 }),
     WorkTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 }),
   ]);
 
@@ -219,7 +219,7 @@ router.get('/stats', authenticate, asyncHandler(async (req: AuthenticatedRequest
     EmailTask.find({ assignee: userId }),
     MeetingTask.find({ assignee: userId }),
     ProjectTask.find({ assignee: userId }),
-    PersonalTask.find({ assignee: userId }),
+    Task.find({ assignee: userId, taskType: TaskType.PERSONAL }),
     WorkTask.find({ assignee: userId }),
   ]);
 
@@ -294,7 +294,7 @@ router.post('/', authenticate, baseTaskValidation, handleValidationErrors, async
       task = new ProjectTask({ ...taskData, assignee: req.user!._id, taskType });
       break;
     case TaskType.PERSONAL:
-      task = new PersonalTask({ ...taskData, assignee: req.user!._id, taskType });
+      task = new Task({ ...taskData, assignee: req.user!._id, taskType });
       break;
     case TaskType.WORK:
       task = new WorkTask({ ...taskData, assignee: req.user!._id, taskType });
@@ -370,7 +370,7 @@ router.get('/:taskType', authenticate, asyncHandler(async (req: AuthenticatedReq
       tasks = await ProjectTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 });
       break;
     case TaskType.PERSONAL:
-      tasks = await PersonalTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 });
+      tasks = await Task.find({ ...query, taskType: TaskType.PERSONAL }).skip(skip).limit(Number(limit)).sort({ createdAt: -1 });
       break;
     case TaskType.WORK:
       tasks = await WorkTask.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 });
@@ -387,6 +387,139 @@ router.get('/:taskType', authenticate, asyncHandler(async (req: AuthenticatedReq
       limit: Number(limit),
       total: tasks.length
     }
+  });
+}));
+
+// ========================= PERSONAL TASK SPECIFIC ROUTES =========================
+
+// @route   GET /api/tasks/personal/stats
+// @desc    Get personal task statistics
+// @access  Private
+router.get('/personal/stats', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!._id;
+  const { period = '30' } = req.query; // days
+
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - Number(period));
+
+  const personalTasks = await Task.find({
+    assignee: userId,
+    taskType: TaskType.PERSONAL,
+    createdAt: { $gte: startDate }
+  });
+
+  const stats = {
+    totalPersonalTasks: personalTasks.length,
+    byCategory: {
+      health: personalTasks.filter(t => t.personalCategory === 'health').length,
+      fitness: personalTasks.filter(t => t.personalCategory === 'fitness').length,
+      hobby: personalTasks.filter(t => t.personalCategory === 'hobby').length,
+      learning: personalTasks.filter(t => t.personalCategory === 'learning').length,
+      travel: personalTasks.filter(t => t.personalCategory === 'travel').length,
+      family: personalTasks.filter(t => t.personalCategory === 'family').length,
+      finance: personalTasks.filter(t => t.personalCategory === 'finance').length,
+      home: personalTasks.filter(t => t.personalCategory === 'home').length,
+      other: personalTasks.filter(t => t.personalCategory === 'other').length
+    },
+    byPriority: {
+      low: personalTasks.filter(t => t.priority === 'low').length,
+      medium: personalTasks.filter(t => t.priority === 'medium').length,
+      high: personalTasks.filter(t => t.priority === 'high').length,
+      urgent: personalTasks.filter(t => t.priority === 'urgent').length
+    },
+    byMood: {
+      excited: personalTasks.filter(t => t.moodBefore === 'excited').length,
+      motivated: personalTasks.filter(t => t.moodBefore === 'motivated').length,
+      neutral: personalTasks.filter(t => t.moodBefore === 'neutral').length,
+      tired: personalTasks.filter(t => t.moodBefore === 'tired').length,
+      stressed: personalTasks.filter(t => t.moodBefore === 'stressed').length,
+      happy: personalTasks.filter(t => t.moodBefore === 'happy').length,
+      sad: personalTasks.filter(t => t.moodBefore === 'sad').length,
+      anxious: personalTasks.filter(t => t.moodBefore === 'anxious').length
+    },
+    recurringTasks: personalTasks.filter(t => t.isRecurring).length,
+    oneTimeTasks: personalTasks.filter(t => !t.isRecurring).length,
+    totalCost: personalTasks.reduce((sum, t) => sum + (t.cost || 0), 0),
+    averageCost: personalTasks.length > 0 
+      ? Math.round(personalTasks.reduce((sum, t) => sum + (t.cost || 0), 0) / personalTasks.length)
+      : 0,
+    completedTasks: personalTasks.filter(t => t.status === 'completed').length,
+    completionRate: personalTasks.length > 0 
+      ? Math.round((personalTasks.filter(t => t.status === 'completed').length / personalTasks.length) * 100)
+      : 0
+  };
+
+  res.status(200).json(stats);
+}));
+
+// @route   GET /api/tasks/personal/search/category
+// @desc    Search personal tasks by category
+// @access  Private
+router.get('/personal/search/category', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { category, page = 1, limit = 10 } = req.query;
+  
+  if (!category) {
+    res.status(400).json({ error: 'Category search term is required' });
+    return;
+  }
+
+  const userId = req.user!._id;
+  const skip = (Number(page) - 1) * Number(limit);
+
+  const personalTasks = await Task.find({
+    assignee: userId,
+    taskType: TaskType.PERSONAL,
+    personalCategory: { $regex: category, $options: 'i' }
+  })
+    .skip(skip)
+    .limit(Number(limit))
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({
+    personalTasks,
+    searchTerm: category,
+    pagination: {
+      page: Number(page),
+      limit: Number(limit),
+      total: personalTasks.length
+    }
+  });
+}));
+
+// @route   GET /api/tasks/personal/mood-tracking
+// @desc    Get mood tracking data
+// @access  Private
+router.get('/personal/mood-tracking', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!._id;
+  const { period = '30' } = req.query; // days
+
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - Number(period));
+
+  const personalTasks = await Task.find({
+    assignee: userId,
+    taskType: TaskType.PERSONAL,
+    createdAt: { $gte: startDate },
+    $or: [
+      { moodBefore: { $exists: true, $ne: null } },
+      { moodAfter: { $exists: true, $ne: null } }
+    ]
+  })
+    .sort({ createdAt: -1 });
+
+  const moodTracking = personalTasks.map(task => ({
+    date: task.createdAt,
+    moodBefore: task.moodBefore,
+    moodAfter: task.moodAfter,
+    category: task.personalCategory,
+    title: task.title,
+    status: task.status
+  }));
+
+  res.status(200).json({
+    moodTracking,
+    period: `${period} days`,
+    total: moodTracking.length
   });
 }));
 

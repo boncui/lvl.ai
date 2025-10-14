@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 import { IBaseTask, TaskType, BaseTaskSchema } from './BaseTask';
 
 // ---------- WORK TASK INTERFACE ----------
@@ -160,32 +160,32 @@ WorkTaskSchema.virtual('workEfficiency').get(function() {
 
 // Method to start time tracking
 WorkTaskSchema.methods['startTimeTracking'] = function() {
-  this.timeTracking.startTime = new Date();
-  this.workStatus = 'in_progress';
+  this['timeTracking'].startTime = new Date();
+  this['workStatus'] = 'in_progress';
   return this['save']();
 };
 
 // Method to stop time tracking
 WorkTaskSchema.methods['stopTimeTracking'] = function() {
-  if (this.timeTracking.startTime) {
-    this.timeTracking.endTime = new Date();
-    const duration = this.timeTracking.endTime.getTime() - this.timeTracking.startTime.getTime();
-    this.timeTracking.totalTime = Math.round(duration / (1000 * 60)); // Convert to minutes
+  if (this['timeTracking'].startTime) {
+    this['timeTracking'].endTime = new Date();
+    const duration = this['timeTracking'].endTime.getTime() - this['timeTracking'].startTime.getTime();
+    this['timeTracking'].totalTime = Math.round(duration / (1000 * 60)); // Convert to minutes
   }
   return this['save']();
 };
 
 // Method to add blocker
 WorkTaskSchema.methods['addBlocker'] = function(blocker: string) {
-  if (!this.blockers.includes(blocker)) {
-    this.blockers.push(blocker);
+  if (!this['blockers'].includes(blocker)) {
+    this['blockers'].push(blocker);
   }
   return this['save']();
 };
 
 // Method to remove blocker
 WorkTaskSchema.methods['removeBlocker'] = function(blocker: string) {
-  this.blockers = this.blockers.filter(b => b !== blocker);
+  this['blockers'] = this['blockers'].filter((b: string) => b !== blocker);
   return this['save']();
 };
 

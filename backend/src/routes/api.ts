@@ -8,7 +8,6 @@ import homeworkTasksRoutes from './homeworkTasks';
 import emailTasksRoutes from './emailTasks';
 import meetingTasksRoutes from './meetingTasks';
 import projectTasksRoutes from './projectTasks';
-import personalTasksRoutes from './personalTasks';
 import workTasksRoutes from './workTasks';
 
 const router = Router();
@@ -29,7 +28,7 @@ router.get('/', (_req, res) => {
       emailTasks: '/api/email-tasks',
       meetingTasks: '/api/meeting-tasks',
       projectTasks: '/api/project-tasks',
-      personalTasks: '/api/personal-tasks',
+      personalTasks: '/api/tasks/personal',
       workTasks: '/api/work-tasks',
       healthTasks: '/api/health-tasks',
       socialTasks: '/api/social-tasks',
@@ -55,7 +54,6 @@ router.use('/homework-tasks', homeworkTasksRoutes);
 router.use('/email-tasks', emailTasksRoutes);
 router.use('/meeting-tasks', meetingTasksRoutes);
 router.use('/project-tasks', projectTasksRoutes);
-router.use('/personal-tasks', personalTasksRoutes);
 router.use('/work-tasks', workTasksRoutes);
 
 export default router;

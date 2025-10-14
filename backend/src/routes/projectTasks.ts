@@ -29,7 +29,7 @@ const mustOwnProjectTask = (): RequestHandler =>
       return;
     }
 
-    const taskId = req.params.id;
+    const taskId = req.params['id'];
     
     try {
       const task = await ProjectTask.findById(taskId);
@@ -171,22 +171,22 @@ router.get('/stats', authenticate, asyncHandler(async (req: AuthenticatedRequest
       testing: projectTasks.filter(t => t.projectPhase === 'testing').length,
       deployment: projectTasks.filter(t => t.projectPhase === 'deployment').length,
       maintenance: projectTasks.filter(t => t.projectPhase === 'maintenance').length,
-      completed: projectTasks.filter(t => t.projectPhase === 'completed').length,
-      cancelled: projectTasks.filter(t => t.projectPhase === 'cancelled').length
+      completed: projectTasks.filter(t => t.projectPhase === 'completed').length
     },
     byProjectType: {
-      personal: projectTasks.filter(t => t.projectType === 'personal').length,
-      work: projectTasks.filter(t => t.projectType === 'work').length,
-      open_source: projectTasks.filter(t => t.projectType === 'open_source').length,
-      client_project: projectTasks.filter(t => t.projectType === 'client_project').length,
-      internal_tool: projectTasks.filter(t => t.projectType === 'internal_tool').length,
+      web_app: projectTasks.filter(t => t.projectType === 'web_app').length,
+      mobile_app: projectTasks.filter(t => t.projectType === 'mobile_app').length,
+      desktop_app: projectTasks.filter(t => t.projectType === 'desktop_app').length,
+      api: projectTasks.filter(t => t.projectType === 'api').length,
+      database: projectTasks.filter(t => t.projectType === 'database').length,
+      infrastructure: projectTasks.filter(t => t.projectType === 'infrastructure').length,
+      research: projectTasks.filter(t => t.projectType === 'research').length,
       other: projectTasks.filter(t => t.projectType === 'other').length
     },
     byProjectStatus: {
       on_track: projectTasks.filter(t => t.projectStatus === 'on_track').length,
       at_risk: projectTasks.filter(t => t.projectStatus === 'at_risk').length,
       delayed: projectTasks.filter(t => t.projectStatus === 'delayed').length,
-      completed: projectTasks.filter(t => t.projectStatus === 'completed').length,
       cancelled: projectTasks.filter(t => t.projectStatus === 'cancelled').length
     },
     totalBudget: projectTasks.reduce((sum, t) => sum + (t.budget || 0), 0),
@@ -230,7 +230,7 @@ router.get('/:id', authenticate, mustOwnProjectTask(), asyncHandler(async (req: 
 // @access  Private
 router.put('/:id', authenticate, mustOwnProjectTask(), projectTaskValidation, handleValidationErrors, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const updatedProjectTask = await ProjectTask.findByIdAndUpdate(
-    req.params.id,
+    req.params['id'],
     { ...req.body },
     { new: true, runValidators: true }
   );
@@ -242,7 +242,7 @@ router.put('/:id', authenticate, mustOwnProjectTask(), projectTaskValidation, ha
 // @desc    Delete a specific project task
 // @access  Private
 router.delete('/:id', authenticate, mustOwnProjectTask(), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  await ProjectTask.findByIdAndDelete(req.params.id);
+  await ProjectTask.findByIdAndDelete(req.params['id']);
   res.status(200).json({ message: 'Project task deleted successfully' });
 }));
 
@@ -264,7 +264,7 @@ router.post('/:id/milestones', authenticate, mustOwnProjectTask(), asyncHandler(
   }
 
   await req.projectTask!.addMilestone(name, dueDateObj);
-  const updatedTask = await ProjectTask.findById(req.params.id);
+  const updatedTask = await ProjectTask.findById(req.params['id']);
   
   res.status(200).json(updatedTask);
 }));
@@ -273,7 +273,7 @@ router.post('/:id/milestones', authenticate, mustOwnProjectTask(), asyncHandler(
 // @desc    Complete a milestone
 // @access  Private
 router.post('/:id/milestones/:milestoneIndex/complete', authenticate, mustOwnProjectTask(), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const milestoneIndex = Number(req.params.milestoneIndex);
+  const milestoneIndex = Number(req.params['milestoneIndex']);
   
   if (isNaN(milestoneIndex) || milestoneIndex < 0) {
     res.status(400).json({ error: 'Invalid milestone index' });
@@ -281,7 +281,7 @@ router.post('/:id/milestones/:milestoneIndex/complete', authenticate, mustOwnPro
   }
 
   await req.projectTask!.completeMilestone(milestoneIndex);
-  const updatedTask = await ProjectTask.findById(req.params.id);
+  const updatedTask = await ProjectTask.findById(req.params['id']);
   
   res.status(200).json(updatedTask);
 }));
@@ -305,7 +305,7 @@ router.post('/:id/team-members', authenticate, mustOwnProjectTask(), asyncHandle
   }
 
   await req.projectTask!.addTeamMember(userId);
-  const updatedTask = await ProjectTask.findById(req.params.id).populate('teamMembers', 'name email');
+  const updatedTask = await ProjectTask.findById(req.params['id']).populate('teamMembers', 'name email');
   
   res.status(200).json(updatedTask);
 }));
@@ -329,7 +329,7 @@ router.post('/:id/dependencies', authenticate, mustOwnProjectTask(), asyncHandle
   }
 
   await req.projectTask!.addDependency(dependencyId);
-  const updatedTask = await ProjectTask.findById(req.params.id).populate('dependencies', 'title projectName projectPhase');
+  const updatedTask = await ProjectTask.findById(req.params['id']).populate('dependencies', 'title projectName projectPhase');
   
   res.status(200).json(updatedTask);
 }));
@@ -343,8 +343,8 @@ router.get('/:id/progress', authenticate, mustOwnProjectTask(), asyncHandler(asy
   res.status(200).json({
     projectProgress: task.projectProgress,
     totalMilestones: task.milestones.length,
-    completedMilestones: task.milestones.filter(m => m.completed).length,
-    overdueMilestones: task.milestones.filter(m => m.dueDate < new Date() && !m.completed).length,
+    completedMilestones: task.milestones.filter((m: any) => m.completed).length,
+    overdueMilestones: task.milestones.filter((m: any) => m.dueDate < new Date() && !m.completed).length,
     budgetUtilization: task.budgetUtilization,
     isOverdue: task.isOverdue,
     projectStatus: task.projectStatus

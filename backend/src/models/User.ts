@@ -192,7 +192,7 @@ const UserSchema = new Schema<IUser>(
       }],
       personalTasks: [{
         type: Schema.Types.ObjectId,
-        ref: 'PersonalTask'
+        ref: 'Task'
       }],
       workTasks: [{
         type: Schema.Types.ObjectId,

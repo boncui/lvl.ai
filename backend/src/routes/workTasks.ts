@@ -28,7 +28,7 @@ const mustOwnWorkTask = (): RequestHandler =>
       return;
     }
 
-    const taskId = req.params.id;
+    const taskId = req.params['id'];
     
     try {
       const task = await WorkTask.findById(taskId);
@@ -60,11 +60,11 @@ const workTaskValidation = [
   check('workCategory')
     .notEmpty()
     .withMessage('Work category is required')
-    .isIn(['meeting', 'email', 'documentation', 'coding', 'testing', 'design', 'research', 'presentation', 'other'])
+    .isIn(['development', 'design', 'marketing', 'sales', 'hr', 'finance', 'operations', 'research', 'other'])
     .withMessage('Invalid work category'),
   check('priority')
     .optional()
-    .isIn(['low', 'medium', 'high', 'urgent'])
+    .isIn(['low', 'medium', 'high', 'critical'])
     .withMessage('Invalid priority level'),
   check('estimatedDuration')
     .optional()
@@ -78,10 +78,6 @@ const workTaskValidation = [
     .optional()
     .isISO8601()
     .withMessage('Invalid deadline format'),
-  check('isBillable')
-    .optional()
-    .isBoolean()
-    .withMessage('isBillable must be a boolean'),
   check('hourlyRate')
     .optional()
     .isFloat({ min: 0 })
@@ -109,14 +105,14 @@ const router: Router = express.Router();
 // @access  Private
 router.get('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!._id;
-  const { workCategory, priority, status, isBillable, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+  const { workCategory, priority, status, billableHours, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
 
   const query: any = { assignee: userId };
   
   if (workCategory) query.workCategory = workCategory;
   if (priority) query.priority = priority;
   if (status) query.status = status;
-  if (isBillable !== undefined) query.isBillable = isBillable === 'true';
+  if (billableHours !== undefined) query.billableHours = { $gt: 0 };
 
   const skip = (Number(page) - 1) * Number(limit);
   const sortOptions: any = {};
@@ -159,24 +155,24 @@ router.get('/stats', authenticate, asyncHandler(async (req: AuthenticatedRequest
   const stats = {
     totalWorkTasks: workTasks.length,
     byCategory: {
-      meeting: workTasks.filter(t => t.workCategory === 'meeting').length,
-      email: workTasks.filter(t => t.workCategory === 'email').length,
-      documentation: workTasks.filter(t => t.workCategory === 'documentation').length,
-      coding: workTasks.filter(t => t.workCategory === 'coding').length,
-      testing: workTasks.filter(t => t.workCategory === 'testing').length,
+      development: workTasks.filter(t => t.workCategory === 'development').length,
       design: workTasks.filter(t => t.workCategory === 'design').length,
+      marketing: workTasks.filter(t => t.workCategory === 'marketing').length,
+      sales: workTasks.filter(t => t.workCategory === 'sales').length,
+      hr: workTasks.filter(t => t.workCategory === 'hr').length,
+      finance: workTasks.filter(t => t.workCategory === 'finance').length,
+      operations: workTasks.filter(t => t.workCategory === 'operations').length,
       research: workTasks.filter(t => t.workCategory === 'research').length,
-      presentation: workTasks.filter(t => t.workCategory === 'presentation').length,
       other: workTasks.filter(t => t.workCategory === 'other').length
     },
-    billableTasks: workTasks.filter(t => t.isBillable).length,
-    nonBillableTasks: workTasks.filter(t => !t.isBillable).length,
+    billableTasks: workTasks.filter(t => t.billableHours && t.billableHours > 0).length,
+    nonBillableTasks: workTasks.filter(t => !t.billableHours || t.billableHours === 0).length,
     totalBillableHours: workTasks
-      .filter(t => t.isBillable && t.actualDuration)
-      .reduce((sum, t) => sum + (t.actualDuration || 0), 0),
+      .filter(t => t.billableHours && t.billableHours > 0)
+      .reduce((sum, t) => sum + (t.billableHours || 0), 0),
     totalEarnings: workTasks
-      .filter(t => t.isBillable && t.actualDuration && t.hourlyRate)
-      .reduce((sum, t) => sum + ((t.actualDuration || 0) / 60) * (t.hourlyRate || 0), 0),
+      .filter(t => t.billableHours && t.billableHours > 0 && t.hourlyRate)
+      .reduce((sum, t) => sum + (t.billableHours || 0) * (t.hourlyRate || 0), 0),
     averageHourlyRate: workTasks.length > 0 
       ? Math.round(workTasks.reduce((sum, t) => sum + (t.hourlyRate || 0), 0) / workTasks.length)
       : 0,
@@ -215,7 +211,7 @@ router.get('/:id', authenticate, mustOwnWorkTask(), asyncHandler(async (req: Aut
 // @access  Private
 router.put('/:id', authenticate, mustOwnWorkTask(), workTaskValidation, handleValidationErrors, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const updatedWorkTask = await WorkTask.findByIdAndUpdate(
-    req.params.id,
+    req.params['id'],
     { ...req.body },
     { new: true, runValidators: true }
   );
@@ -227,7 +223,7 @@ router.put('/:id', authenticate, mustOwnWorkTask(), workTaskValidation, handleVa
 // @desc    Delete a specific work task
 // @access  Private
 router.delete('/:id', authenticate, mustOwnWorkTask(), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  await WorkTask.findByIdAndDelete(req.params.id);
+  await WorkTask.findByIdAndDelete(req.params['id']);
   res.status(200).json({ message: 'Work task deleted successfully' });
 }));
 

@@ -29,7 +29,7 @@ const mustOwnHomeworkTask = (): RequestHandler =>
       return;
     }
 
-    const taskId = req.params.id;
+    const taskId = req.params['id'];
     
     try {
       const task = await HomeworkTask.findById(taskId);
@@ -233,7 +233,7 @@ router.get('/:id', authenticate, mustOwnHomeworkTask(), asyncHandler(async (req:
 // @access  Private
 router.put('/:id', authenticate, mustOwnHomeworkTask(), homeworkTaskValidation, handleValidationErrors, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const updatedHomeworkTask = await HomeworkTask.findByIdAndUpdate(
-    req.params.id,
+    req.params['id'],
     { ...req.body },
     { new: true, runValidators: true }
   );
@@ -245,7 +245,7 @@ router.put('/:id', authenticate, mustOwnHomeworkTask(), homeworkTaskValidation, 
 // @desc    Delete a specific homework task
 // @access  Private
 router.delete('/:id', authenticate, mustOwnHomeworkTask(), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  await HomeworkTask.findByIdAndDelete(req.params.id);
+  await HomeworkTask.findByIdAndDelete(req.params['id']);
   res.status(200).json({ message: 'Homework task deleted successfully' });
 }));
 
@@ -261,7 +261,7 @@ router.post('/:id/materials', authenticate, mustOwnHomeworkTask(), asyncHandler(
   }
 
   await req.homeworkTask!.addMaterial(material);
-  const updatedTask = await HomeworkTask.findById(req.params.id);
+  const updatedTask = await HomeworkTask.findById(req.params['id']);
   
   res.status(200).json(updatedTask);
 }));
@@ -285,7 +285,7 @@ router.post('/:id/group-members', authenticate, mustOwnHomeworkTask(), asyncHand
   }
 
   await req.homeworkTask!.addGroupMember(userId);
-  const updatedTask = await HomeworkTask.findById(req.params.id).populate('groupMembers', 'name email');
+  const updatedTask = await HomeworkTask.findById(req.params['id']).populate('groupMembers', 'name email');
   
   res.status(200).json(updatedTask);
 }));
@@ -302,7 +302,7 @@ router.put('/:id/study-time', authenticate, mustOwnHomeworkTask(), asyncHandler(
   }
 
   await req.homeworkTask!.updateStudyTime(actualTime);
-  const updatedTask = await HomeworkTask.findById(req.params.id);
+  const updatedTask = await HomeworkTask.findById(req.params['id']);
   
   res.status(200).json(updatedTask);
 }));

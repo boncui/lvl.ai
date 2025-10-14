@@ -29,7 +29,7 @@ const mustOwnMeetingTask = (): RequestHandler =>
       return;
     }
 
-    const taskId = req.params.id;
+    const taskId = req.params['id'];
     
     try {
       const task = await MeetingTask.findById(taskId);
@@ -192,10 +192,10 @@ router.get('/stats', authenticate, asyncHandler(async (req: AuthenticatedRequest
     averageDuration: meetingTasks.length > 0 
       ? Math.round(meetingTasks.reduce((sum, t) => sum + t.meetingDuration, 0) / meetingTasks.length)
       : 0,
-    totalActionItems: meetingTasks.reduce((sum, t) => sum + t.actionItems.length, 0),
+    totalActionItems: meetingTasks.reduce((sum, t) => sum + (t.actionItems?.length || 0), 0),
     completedActionItems: meetingTasks.reduce((sum, t) => 
-      sum + t.actionItems.filter(item => item.completed).length, 0),
-    happeningNow: meetingTasks.filter(t => t.isHappeningNow).length
+      sum + (t.actionItems?.filter((item: any) => item.completed).length || 0), 0),
+    happeningNow: meetingTasks.filter(t => (t as any).isHappeningNow).length
   };
 
   res.status(200).json(stats);
@@ -227,7 +227,7 @@ router.get('/:id', authenticate, mustOwnMeetingTask(), asyncHandler(async (req: 
 // @access  Private
 router.put('/:id', authenticate, mustOwnMeetingTask(), meetingTaskValidation, handleValidationErrors, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const updatedMeetingTask = await MeetingTask.findByIdAndUpdate(
-    req.params.id,
+    req.params['id'],
     { ...req.body },
     { new: true, runValidators: true }
   );
@@ -239,7 +239,7 @@ router.put('/:id', authenticate, mustOwnMeetingTask(), meetingTaskValidation, ha
 // @desc    Delete a specific meeting task
 // @access  Private
 router.delete('/:id', authenticate, mustOwnMeetingTask(), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  await MeetingTask.findByIdAndDelete(req.params.id);
+  await MeetingTask.findByIdAndDelete(req.params['id']);
   res.status(200).json({ message: 'Meeting task deleted successfully' });
 }));
 
@@ -262,7 +262,7 @@ router.post('/:id/attendees', authenticate, mustOwnMeetingTask(), asyncHandler(a
   }
 
   await req.meetingTask!.addAttendee(userId);
-  const updatedTask = await MeetingTask.findById(req.params.id).populate('attendees', 'name email');
+  const updatedTask = await MeetingTask.findById(req.params['id']).populate('attendees', 'name email');
   
   res.status(200).json(updatedTask);
 }));
@@ -287,7 +287,7 @@ router.post('/:id/action-items', authenticate, mustOwnMeetingTask(), asyncHandle
 
   const dueDateObj = dueDate ? new Date(dueDate) : undefined;
   await req.meetingTask!.addActionItem(item, assigneeId, dueDateObj);
-  const updatedTask = await MeetingTask.findById(req.params.id).populate('actionItems.assignee', 'name email');
+  const updatedTask = await MeetingTask.findById(req.params['id']).populate('actionItems.assignee', 'name email');
   
   res.status(200).json(updatedTask);
 }));
@@ -296,7 +296,7 @@ router.post('/:id/action-items', authenticate, mustOwnMeetingTask(), asyncHandle
 // @desc    Complete an action item
 // @access  Private
 router.post('/:id/action-items/:actionIndex/complete', authenticate, mustOwnMeetingTask(), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const actionIndex = Number(req.params.actionIndex);
+  const actionIndex = Number(req.params['actionIndex']);
   
   if (isNaN(actionIndex) || actionIndex < 0) {
     res.status(400).json({ error: 'Invalid action item index' });
@@ -304,7 +304,7 @@ router.post('/:id/action-items/:actionIndex/complete', authenticate, mustOwnMeet
   }
 
   await req.meetingTask!.completeActionItem(actionIndex);
-  const updatedTask = await MeetingTask.findById(req.params.id).populate('actionItems.assignee', 'name email');
+  const updatedTask = await MeetingTask.findById(req.params['id']).populate('actionItems.assignee', 'name email');
   
   res.status(200).json(updatedTask);
 }));
@@ -321,7 +321,7 @@ router.get('/:id/efficiency', authenticate, mustOwnMeetingTask(), asyncHandler(a
     actualDuration: task.actualDuration,
     isHappeningNow: task.isHappeningNow,
     totalActionItems: task.actionItems.length,
-    completedActionItems: task.actionItems.filter(item => item.completed).length
+    completedActionItems: task.actionItems.filter((item: any) => item.completed).length
   });
 }));
 
@@ -338,7 +338,7 @@ router.get('/happening-now', authenticate, asyncHandler(async (req: Authenticate
     .populate('attendees', 'name email')
     .populate('actionItems.assignee', 'name email');
 
-  const currentMeetings = happeningNow.filter(task => task.isHappeningNow);
+  const currentMeetings = happeningNow.filter(task => (task as any).isHappeningNow);
 
   res.status(200).json({
     currentMeetings,
