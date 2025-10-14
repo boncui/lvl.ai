@@ -22,41 +22,49 @@ A robust, scalable backend API built with TypeScript, Express.js, Node.js, and M
 ## 📁 Project Structure
 
 ```
-src/
-├── config/           # Configuration files
-│   ├── database.ts   # MongoDB connection
-│   └── env.ts        # Environment variables
-├── controllers/      # Route controllers
-│   ├── authController.ts
-│   └── userController.ts
-├── middleware/       # Custom middleware
-│   ├── auth.ts       # Authentication middleware
-│   ├── errorHandler.ts
-│   ├── notFound.ts
-│   └── upload.ts     # File upload middleware
-├── models/           # MongoDB models
-│   └── User.ts
-├── routes/           # API routes
-│   ├── auth.ts
-│   ├── users.ts
-│   └── api.ts
-├── services/         # Business logic services
-│   └── emailService.ts
-├── tests/            # Test files
-│   ├── setup.ts
-│   └── auth.test.ts
-├── utils/            # Utility functions
-│   ├── logger.ts
-│   └── helpers.ts
-└── index.ts          # Application entry point
+backend/
+├── src/
+│   ├── config/           # Configuration files
+│   │   ├── database.ts   # MongoDB connection
+│   │   └── env.ts        # Environment variables
+│   ├── controllers/      # Route controllers
+│   │   ├── authController.ts
+│   │   └── userController.ts
+│   ├── middleware/        # Custom middleware
+│   │   ├── auth.ts       # Authentication middleware
+│   │   ├── errorHandler.ts
+│   │   ├── notFound.ts
+│   │   └── upload.ts     # File upload middleware
+│   ├── models/           # MongoDB models
+│   │   └── User.ts
+│   ├── routes/           # API routes
+│   │   ├── auth.ts
+│   │   ├── users.ts
+│   │   └── api.ts
+│   ├── services/         # Business logic services
+│   │   └── emailService.ts
+│   ├── tests/            # Test files
+│   │   ├── setup.ts
+│   │   └── auth.test.ts
+│   ├── utils/            # Utility functions
+│   │   ├── logger.ts
+│   │   └── helpers.ts
+│   └── index.ts          # Application entry point
+├── package.json          # Dependencies and scripts
+├── tsconfig.json        # TypeScript configuration
+├── jest.config.js       # Jest testing configuration
+├── nodemon.json        # Development server configuration
+├── .eslintrc.json      # ESLint configuration
+├── .prettierrc         # Prettier configuration
+├── .gitignore          # Git ignore patterns
+└── env.example         # Environment variables template
 ```
 
 ## 🛠️ Installation
 
-1. **Clone the repository**
+1. **Navigate to backend directory**
    ```bash
-   git clone <repository-url>
-   cd lvl.ai
+   cd backend
    ```
 
 2. **Install dependencies**
