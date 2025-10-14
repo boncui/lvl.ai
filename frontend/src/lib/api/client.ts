@@ -107,6 +107,10 @@ class ApiClient {
     throw new Error(response.data.message || 'Failed to get user data');
   }
 
+  getToken(): string | null {
+    return this.token;
+  }
+
   // User endpoints
   async updateUser(userId: string, userData: Partial<User>): Promise<User> {
     const response: AxiosResponse<ApiResponse<User>> = await this.client.put(`/users/${userId}`, userData);
@@ -296,10 +300,6 @@ class ApiClient {
   // Utility methods
   isAuthenticated(): boolean {
     return !!this.token;
-  }
-
-  getToken(): string | null {
-    return this.token;
   }
 }
 

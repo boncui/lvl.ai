@@ -1,103 +1,368 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
+import { useRouter } from 'next/navigation';
 import { User } from '@/types';
 import apiClient from '@/lib/api/client';
+import type { InternalAxiosRequestConfig } from 'axios';
+import { isAxiosError } from 'axios';
 
 interface AuthContextType {
   user: User | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
   isAuthenticated: boolean;
+  isVerified: boolean;
+  loading: boolean;
+  accessToken: string | null;
+  login: (email: string, password: string, nextUrl?: string) => Promise<void>;
+  register: (name: string, email: string, password: string, nextUrl?: string) => Promise<void>;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  updateUser: (userData: Partial<User>) => void;
+  verifyEmail?: (email: string, code: string) => Promise<string>;
+  resendCode?: (email: string) => Promise<string>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-}
+/** Utilities */
+const hasWindow = () => typeof window !== 'undefined';
+const getSessionFlag = () =>
+  hasWindow() ? localStorage.getItem('hasSession') === 'true' : false;
+const setSessionFlag = (val: boolean) => {
+  if (!hasWindow()) return;
+  if (val) localStorage.setItem('hasSession', 'true');
+  else localStorage.removeItem('hasSession');
+};
 
-interface AuthProviderProps {
-  children: React.ReactNode;
-}
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const router = useRouter();
 
-export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // timers & guards
+  const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
+  const bcRef = useRef<BroadcastChannel | null>(null);
+  const mountedRef = useRef(true);
+
+  /** Call token refresh; return true if session refreshed */
+  const doRefresh = useCallback(async (): Promise<boolean> => {
+    try {
+      // Check if we have a token to refresh
+      if (!apiClient.isAuthenticated()) {
+        return false;
+      }
+
+      // Try to get current user to validate token
+      const currentUser = await apiClient.getCurrentUser();
+      if (mountedRef.current) {
+        setUser(currentUser);
+        setAccessToken(apiClient.getToken());
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      return false;
+    } finally {
+      refreshPromiseRef.current = null;
+    }
+  }, []);
+
+  /** Refresh user data from database */
+  const refreshUser = useCallback(async (): Promise<void> => {
+    if (!user) return;
+
+    try {
+      const current = await apiClient.getCurrentUser();
+      if (mountedRef.current) {
+        setUser(current);
+        // Broadcast user update to other tabs
+        bcRef.current?.postMessage({ type: 'userUpdate', user: current });
+      }
+    } catch (err) {
+      console.error('Failed to refresh user data:', err);
+      // Don't logout on user refresh failure - might be temporary network issue
+    }
+  }, [user]);
+
+  /** Update user data locally (optimistic update) */
+  const updateUser = useCallback((userData: Partial<User>) => {
+    setUser(prevUser => {
+      if (!prevUser) return null;
+      const updatedUser = { ...prevUser, ...userData };
+      // Broadcast update to other tabs
+      bcRef.current?.postMessage({ type: 'userUpdate', user: updatedUser });
+      return updatedUser;
+    });
+  }, []);
+
+  // init on mount
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (apiClient.isAuthenticated()) {
-          const userData = await apiClient.getCurrentUser();
-          setUser(userData);
+    mountedRef.current = true;
+
+    // cross-tab sync
+    if (hasWindow()) {
+      bcRef.current = new BroadcastChannel('auth');
+      bcRef.current.onmessage = (ev) => {
+        if (ev?.data === 'logout') {
+          setSessionFlag(false);
+          setUser(null);
+          setAccessToken(null);
+          apiClient.clearToken();
         }
-      } catch (error) {
-        console.error('Failed to initialize auth:', error);
+        if (ev?.data?.type === 'login') {
+          setSessionFlag(true);
+          // optional: lazily fetch user when this tab needs it
+        }
+        // Handle user updates from other tabs
+        if (ev?.data?.type === 'userUpdate') {
+          setUser(ev.data.user);
+        }
+      };
+    }
+
+    const init = async () => {
+      // If we don't have a prior session flag, skip boot refresh
+      if (!getSessionFlag()) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Try to refresh session silently
+        const ok = await doRefresh();
+        if (!ok) {
+          setSessionFlag(false);
+          setUser(null);
+          setAccessToken(null);
+          apiClient.clearToken();
+          return;
+        }
+      } catch {
+        // If refresh fails, clear session
+        setSessionFlag(false);
+        setUser(null);
+        setAccessToken(null);
         apiClient.clearToken();
       } finally {
-        setLoading(false);
+        if (mountedRef.current) setLoading(false);
       }
     };
 
-    initAuth();
-  }, []);
+    init();
 
-  const login = async (email: string, password: string) => {
-    try {
-      setLoading(true);
-      const response = await apiClient.login({ email, password });
-      setUser(response.user);
-    } catch (error) {
-      console.error('Login failed:', error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => {
+      mountedRef.current = false;
+      if (bcRef.current) {
+        bcRef.current.close();
+        bcRef.current = null;
+      }
+    };
+  }, [doRefresh]);
 
-  const register = async (name: string, email: string, password: string) => {
-    try {
-      setLoading(true);
-      const response = await apiClient.register({ name, email, password });
-      setUser(response.user);
-    } catch (error) {
-      console.error('Registration failed:', error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
+  /* ------------------------------- LOGIN ------------------------------- */
+  const login = useCallback(
+    async (email: string, password: string, nextUrl?: string) => {
+      try {
+        const response = await apiClient.login({ email, password });
+        setSessionFlag(true);
+        setUser(response.user);
+        setAccessToken(response.token);
+        bcRef.current?.postMessage({ type: 'login' });
 
-  const logout = async () => {
+        // caller decides where to go; fallback to home
+        if (nextUrl) router.replace(nextUrl);
+        else router.replace('/');
+      } catch (err: unknown) {
+        // Normalize login errors to user-friendly messages
+        if (isAxiosError(err)) {
+          const status = err.response?.status;
+          const apiMessage = err.response?.data?.message || err.response?.data?.error;
+          
+          if (status === 401) {
+            throw new Error('Invalid email or password');
+          }
+          if (status === 404) {
+            throw new Error('User not found');
+          }
+          if (status === 403 && (apiMessage?.toLowerCase() || '').includes('verify')) {
+            // Preserve verify wording so the page can route accordingly
+            throw new Error(apiMessage);
+          }
+          throw new Error(apiMessage || err.message || 'Login failed');
+        }
+        throw err;
+      }
+    },
+    [router]
+  );
+
+  /* ------------------------------ REGISTER ------------------------------ */
+  const register = useCallback(
+    async (name: string, email: string, password: string, nextUrl?: string) => {
+      try {
+        const response = await apiClient.register({ name, email, password });
+        setSessionFlag(true);
+        setUser(response.user);
+        setAccessToken(response.token);
+        bcRef.current?.postMessage({ type: 'login' });
+
+        // caller decides where to go; fallback to home
+        if (nextUrl) router.replace(nextUrl);
+        else router.replace('/');
+      } catch (err: unknown) {
+        // Normalize registration errors to user-friendly messages
+        if (isAxiosError(err)) {
+          const status = err.response?.status;
+          const apiMessage = err.response?.data?.message || err.response?.data?.error;
+          
+          if (status === 409) {
+            throw new Error('Email already exists');
+          }
+          if (status === 400) {
+            throw new Error(apiMessage || 'Invalid registration data');
+          }
+          throw new Error(apiMessage || err.message || 'Registration failed');
+        }
+        throw err;
+      }
+    },
+    [router]
+  );
+
+  /* ------------------------------ LOGOUT ------------------------------ */
+  const logout = useCallback(async () => {
     try {
-      await apiClient.logout();
-    } catch (error) {
-      console.error('Logout failed:', error);
+      if (user) await apiClient.logout();
+    } catch (err) {
+      console.error('Logout error:', err);
     } finally {
       setUser(null);
+      setAccessToken(null);
+      setSessionFlag(false);
       apiClient.clearToken();
+      bcRef.current?.postMessage('logout');
+      router.push('/');
     }
-  };
+  }, [user, router]);
 
-  const value: AuthContextType = {
-    user,
-    loading,
-    login,
-    register,
-    logout,
-    isAuthenticated: !!user,
-  };
+  /* ----------------------- REQUEST interceptor ------------------------ */
+  useEffect(() => {
+    const reqId = apiClient.client.interceptors.request.use(
+      async (config: InternalAxiosRequestConfig) => {
+        // If a refresh is in-flight, wait for it to finish to avoid 401 loops
+        if (refreshPromiseRef.current) {
+          const ok = await refreshPromiseRef.current;
+          if (!ok) {
+            return Promise.reject(new Error('Session expired – request blocked'));
+          }
+        }
+        return config;
+      }
+    );
+    return () => apiClient.client.interceptors.request.eject(reqId);
+  }, []);
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
+  /* ----------------------- RESPONSE interceptor ----------------------- */
+  useEffect(() => {
+    const resId = apiClient.client.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest: InternalAxiosRequestConfig & { _retry?: boolean } = error.config || {};
+        const url: string = String(originalRequest.url || '');
+        
+        if (
+          error.response?.status === 401 &&
+          !originalRequest._retry &&
+          !url.includes('/auth/refresh') &&
+          // Do NOT attempt refresh on explicit login failures
+          !url.includes('/auth/login') &&
+          !url.includes('/auth/register')
+        ) {
+          originalRequest._retry = true;
+          if (!refreshPromiseRef.current) {
+            refreshPromiseRef.current = doRefresh();
+          }
+          const ok = await refreshPromiseRef.current;
+          if (ok) {
+            return apiClient.client(originalRequest);
+          }
+          await logout();
+          return Promise.reject(new Error('Session expired'));
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => apiClient.client.interceptors.response.eject(resId);
+  }, [doRefresh, logout]);
+
+  /* ----------------------- verification helpers ----------------------- */
+  const verifyEmail = useCallback(
+    async (email: string, code: string): Promise<string> => {
+      try {
+        // This would need to be implemented in the API client
+        const response = await apiClient.client.post('/auth/verify-email', { email, code });
+        return response.data.message || 'Email verified successfully';
+      } catch (err: unknown) {
+        if (isAxiosError(err)) {
+          const apiMessage = err.response?.data?.message || err.response?.data?.error;
+          throw new Error(apiMessage || 'Email verification failed');
+        }
+        throw err;
+      }
+    },
+    []
   );
-}
+
+  const resendCode = useCallback(async (email: string): Promise<string> => {
+    try {
+      // This would need to be implemented in the API client
+      const response = await apiClient.client.post('/auth/resend-verification', { email });
+      return response.data.message || 'Verification code sent';
+    } catch (err: unknown) {
+      if (isAxiosError(err)) {
+        const apiMessage = err.response?.data?.message || err.response?.data?.error;
+        throw new Error(apiMessage || 'Failed to resend verification code');
+      }
+      throw err;
+    }
+  }, []);
+
+  /* ------------------------------ context ----------------------------- */
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      isAuthenticated: !!user,
+      isVerified: !!user?.isEmailVerified,
+      loading,
+      accessToken,
+      login,
+      register,
+      logout,
+      refreshUser,
+      updateUser,
+      verifyEmail,
+      resendCode,
+    }),
+    [user, loading, accessToken, login, register, logout, refreshUser, updateUser, verifyEmail, resendCode]
+  );
+
+  // Don't render children until auth initialization completes
+  return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
+};
+
+export const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
+  return ctx;
+};
