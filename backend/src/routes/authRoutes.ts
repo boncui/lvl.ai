@@ -1,23 +1,34 @@
-import { Request, Response, NextFunction } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import { body } from 'express-validator';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { validationResult } from 'express-validator';
-import User, { IUser } from '@/models/User';
+import User from '@/models/User';
 import { CustomError } from '@/middleware/errorHandler';
 import { env } from '@/config/env';
-import logger from '@/utils/logger';
+import authenticate from '../middleware/auth';
+
+const router = Router();
 
 // Generate JWT Token
 const generateToken = (id: string): string => {
-  return jwt.sign({ id }, env.JWT_SECRET, {
+  const secret = env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET is not defined');
+  }
+  return jwt.sign({ id }, secret, {
     expiresIn: env.JWT_EXPIRE
-  });
+  } as jwt.SignOptions);
 };
 
-// @desc    Register user
 // @route   POST /api/auth/register
+// @desc    Register user
 // @access  Public
-export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.post('/register', [
+  body('name').notEmpty().withMessage('Name is required'),
+  body('email').isEmail().withMessage('Please include a valid email'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -39,7 +50,7 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       password
     });
 
-    const token = generateToken(user._id);
+    const token = generateToken((user._id as any).toString());
 
     res.status(201).json({
       success: true,
@@ -47,19 +58,21 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       user: {
         id: user._id,
         name: user.name,
-        email: user.email,
-        role: user.role
+        email: user.email
       }
     });
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Login user
 // @route   POST /api/auth/login
+// @desc    Login user
 // @access  Public
-export const login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.post('/login', [
+  body('email').isEmail().withMessage('Please include a valid email'),
+  body('password').exists().withMessage('Password is required')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -80,7 +93,7 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
       throw new CustomError('Invalid credentials', 401);
     }
 
-    const token = generateToken(user._id);
+    const token = generateToken((user._id as any).toString());
 
     res.json({
       success: true,
@@ -88,19 +101,18 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
       user: {
         id: user._id,
         name: user.name,
-        email: user.email,
-        role: user.role
+        email: user.email
       }
     });
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Logout user
 // @route   POST /api/auth/logout
+// @desc    Logout user
 // @access  Private
-export const logout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.post('/logout', authenticate, async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     res.cookie('token', 'none', {
       expires: new Date(Date.now() + 10 * 1000),
@@ -114,14 +126,14 @@ export const logout = async (req: Request, res: Response, next: NextFunction): P
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Get current user
 // @route   GET /api/auth/me
+// @desc    Get current user
 // @access  Private
-export const getMe = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/me', authenticate, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const user = await User.findById((req as any).user.id);
+    const user = await User.findById((req as any).user['id']);
 
     res.status(200).json({
       success: true,
@@ -129,7 +141,6 @@ export const getMe = async (req: Request, res: Response, next: NextFunction): Pr
         id: user?._id,
         name: user?.name,
         email: user?.email,
-        role: user?.role,
         avatar: user?.avatar,
         isEmailVerified: user?.isEmailVerified
       }
@@ -137,12 +148,15 @@ export const getMe = async (req: Request, res: Response, next: NextFunction): Pr
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Update user profile
 // @route   PUT /api/auth/profile
+// @desc    Update user profile
 // @access  Private
-export const updateProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.put('/profile', authenticate, [
+  body('name').optional().notEmpty().withMessage('Name cannot be empty'),
+  body('email').optional().isEmail().withMessage('Please include a valid email')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -154,7 +168,7 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
       email: req.body.email
     };
 
-    const user = await User.findByIdAndUpdate((req as any).user.id, fieldsToUpdate, {
+    const user = await User.findByIdAndUpdate((req as any).user['id'], fieldsToUpdate, {
       new: true,
       runValidators: true
     });
@@ -165,26 +179,28 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
         id: user?._id,
         name: user?.name,
         email: user?.email,
-        role: user?.role,
         avatar: user?.avatar
       }
     });
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Update password
 // @route   PUT /api/auth/password
+// @desc    Update password
 // @access  Private
-export const updatePassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.put('/password', authenticate, [
+  body('currentPassword').exists().withMessage('Current password is required'),
+  body('newPassword').isLength({ min: 6 }).withMessage('New password must be at least 6 characters')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       throw new CustomError('Validation failed', 400);
     }
 
-    const user = await User.findById((req as any).user.id).select('+password');
+    const user = await User.findById((req as any).user['id']).select('+password');
 
     // Check current password
     const isMatch = await user!.comparePassword(req.body.currentPassword);
@@ -195,7 +211,7 @@ export const updatePassword = async (req: Request, res: Response, next: NextFunc
     user!.password = req.body.newPassword;
     await user!.save();
 
-    const token = generateToken(user!._id);
+    const token = generateToken((user!._id as any).toString());
 
     res.status(200).json({
       success: true,
@@ -205,12 +221,14 @@ export const updatePassword = async (req: Request, res: Response, next: NextFunc
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Forgot password
 // @route   POST /api/auth/forgot-password
+// @desc    Forgot password
 // @access  Public
-export const forgotPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.post('/forgot-password', [
+  body('email').isEmail().withMessage('Please include a valid email')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -241,12 +259,14 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Reset password
 // @route   PUT /api/auth/reset-password/:token
+// @desc    Reset password
 // @access  Public
-export const resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.put('/reset-password/:token', [
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -254,7 +274,11 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
     }
 
     // Get hashed token
-    const passwordResetToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+    const resetToken = req.params['token'];
+    if (!resetToken) {
+      throw new CustomError('Token is required', 400);
+    }
+    const passwordResetToken = crypto.createHash('sha256').update(resetToken as string).digest('hex');
 
     const user = await User.findOne({
       passwordResetToken,
@@ -267,11 +291,11 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
 
     // Set new password
     user.password = req.body.password;
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
+    user.passwordResetToken = undefined as any;
+    user.passwordResetExpires = undefined as any;
     await user.save();
 
-    const token = generateToken(user._id);
+    const token = generateToken((user._id as any).toString());
 
     res.status(200).json({
       success: true,
@@ -281,15 +305,15 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Verify email
 // @route   GET /api/auth/verify-email/:token
+// @desc    Verify email
 // @access  Public
-export const verifyEmail = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/verify-email/:token', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const user = await User.findOne({
-      emailVerificationToken: req.params.token
+      emailVerificationToken: req.params['token']
     });
 
     if (!user) {
@@ -297,7 +321,7 @@ export const verifyEmail = async (req: Request, res: Response, next: NextFunctio
     }
 
     user.isEmailVerified = true;
-    user.emailVerificationToken = undefined;
+    user.emailVerificationToken = undefined as any;
     await user.save();
 
     res.status(200).json({
@@ -307,4 +331,6 @@ export const verifyEmail = async (req: Request, res: Response, next: NextFunctio
   } catch (error) {
     next(error);
   }
-};
+});
+
+export default router;

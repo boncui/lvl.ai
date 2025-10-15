@@ -1,14 +1,24 @@
 import { Router } from 'express';
 import authenticate, { AuthenticatedRequest } from '../middleware/auth';
 
+// Import auth routes
+import authRoutes from './authRoutes';
+
 // Import all task routes
-import tasksRoutes from './tasks';
-import foodTasksRoutes from './foodTasks';
-import homeworkTasksRoutes from './homeworkTasks';
-import emailTasksRoutes from './emailTasks';
-import meetingTasksRoutes from './meetingTasks';
-import projectTasksRoutes from './projectTasks';
-import workTasksRoutes from './workTasks';
+import taskRoutes from './taskRoutes';
+import foodRoutes from './foodRoutes';
+import homeworkRoutes from './homeworkRoutes';
+import emailRoutes from './emailRoutes';
+import meetingRoutes from './meetingRoutes';
+import projectRoutes from './projectRoutes';
+import workRoutes from './workRoutes';
+
+// Import user and friend routes
+import userRoutes from './userRoutes';
+import friendRoutes from './friendRoutes';
+
+// Import additional task routes
+import healthRoutes from './healthRoutes';
 
 const router = Router();
 
@@ -22,17 +32,18 @@ router.get('/', (_req, res) => {
     status: 'active',
     timestamp: new Date().toISOString(),
     endpoints: {
+      auth: '/api/auth',
+      users: '/api/users',
+      friends: '/api/friends',
       tasks: '/api/tasks',
       foodTasks: '/api/food-tasks',
       homeworkTasks: '/api/homework-tasks',
       emailTasks: '/api/email-tasks',
       meetingTasks: '/api/meeting-tasks',
       projectTasks: '/api/project-tasks',
-      personalTasks: '/api/tasks/personal',
       workTasks: '/api/work-tasks',
       healthTasks: '/api/health-tasks',
       socialTasks: '/api/social-tasks',
-      otherTasks: '/api/other-tasks'
     }
   });
 });
@@ -47,13 +58,21 @@ router.get('/protected', authenticate, (req: AuthenticatedRequest, res) => {
   });
 });
 
+// Mount auth routes
+router.use('/auth', authRoutes);
+
+// Mount user and friend routes
+router.use('/users', userRoutes);
+router.use('/friends', friendRoutes);
+
 // Mount all task routes
-router.use('/tasks', tasksRoutes);
-router.use('/food-tasks', foodTasksRoutes);
-router.use('/homework-tasks', homeworkTasksRoutes);
-router.use('/email-tasks', emailTasksRoutes);
-router.use('/meeting-tasks', meetingTasksRoutes);
-router.use('/project-tasks', projectTasksRoutes);
-router.use('/work-tasks', workTasksRoutes);
+router.use('/tasks', taskRoutes);
+router.use('/food-tasks', foodRoutes);
+router.use('/homework-tasks', homeworkRoutes);
+router.use('/email-tasks', emailRoutes);
+router.use('/meeting-tasks', meetingRoutes);
+router.use('/project-tasks', projectRoutes);
+router.use('/work-tasks', workRoutes);
+router.use('/health-tasks', healthRoutes);
 
 export default router;

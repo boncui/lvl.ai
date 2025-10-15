@@ -11,10 +11,14 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { UserIcon, EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
+import { Eye, EyeOff } from 'lucide-react';
+import { PasswordStrengthIndicator } from './PasswordStrengthIndicator';
 
 export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [password, setPassword] = useState('');
   const { register: registerUser } = useAuth();
   const router = useRouter();
 
@@ -80,12 +84,28 @@ export function RegisterForm() {
             
             <Input
               {...register('password')}
-              type="password"
+              type={showPassword ? "text" : "password"}
               label="Password"
               placeholder="Create a password"
               error={errors.password?.message}
               leftIcon={<LockClosedIcon className="h-4 w-4" />}
+              rightIcon={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              }
+              onChange={(e) => {
+                setPassword(e.target.value);
+                register('password').onChange(e);
+              }}
             />
+            
+            <PasswordStrengthIndicator password={password} />
             
             <Button
               type="submit"

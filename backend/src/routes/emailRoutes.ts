@@ -2,6 +2,76 @@ import express, { NextFunction, Request, Response, Router, RequestHandler } from
 import { check, validationResult } from 'express-validator';
 import authenticate, { AuthenticatedRequest } from '../middleware/auth';
 import EmailTask from '../models/EmailTask';
+import nodemailer from 'nodemailer';
+import { env } from '@/config/env';
+import logger from '@/utils/logger';
+
+// Email Service Class
+class EmailService {
+  private transporter: nodemailer.Transporter;
+
+  constructor() {
+    this.transporter = nodemailer.createTransport({
+      host: env.EMAIL_HOST,
+      port: env.EMAIL_PORT,
+      secure: false, // true for 465, false for other ports
+      auth: {
+        user: env.EMAIL_USER,
+        pass: env.EMAIL_PASS
+      }
+    });
+  }
+
+  async sendEmail(to: string, subject: string, html: string): Promise<void> {
+    try {
+      const mailOptions = {
+        from: `"LVL.AI" <${env.EMAIL_USER}>`,
+        to,
+        subject,
+        html
+      };
+
+      await this.transporter.sendMail(mailOptions);
+      logger.info(`Email sent to ${to}`);
+    } catch (error) {
+      logger.error('Email sending failed:', error);
+      throw error;
+    }
+  }
+
+  async sendWelcomeEmail(to: string, name: string): Promise<void> {
+    const subject = 'Welcome to LVL.AI';
+    const html = `
+      <h1>Welcome to LVL.AI, ${name}!</h1>
+      <p>Thank you for joining our platform. We're excited to have you on board.</p>
+      <p>If you have any questions, feel free to reach out to our support team.</p>
+      <br>
+      <p>Best regards,<br>The LVL.AI Team</p>
+    `;
+
+    await this.sendEmail(to, subject, html);
+  }
+
+  async sendPasswordResetEmail(to: string, resetToken: string): Promise<void> {
+    const subject = 'Password Reset Request';
+    const resetUrl = `${env.CORS_ORIGIN}/reset-password/${resetToken}`;
+    const html = `
+      <h1>Password Reset Request</h1>
+      <p>You requested a password reset for your LVL.AI account.</p>
+      <p>Click the link below to reset your password:</p>
+      <a href="${resetUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a>
+      <p>This link will expire in 10 minutes.</p>
+      <p>If you didn't request this, please ignore this email.</p>
+      <br>
+      <p>Best regards,<br>The LVL.AI Team</p>
+    `;
+
+    await this.sendEmail(to, subject, html);
+  }
+}
+
+// Create email service instance
+const emailService = new EmailService();
 
 // Helper function for async error handling
 const asyncHandler =
@@ -371,6 +441,81 @@ router.get('/overdue', authenticate, asyncHandler(async (req: AuthenticatedReque
     overdueTasks,
     total: overdueTasks.length
   });
+}));
+
+// ========================= EMAIL SERVICE ROUTES =========================
+
+// @route   POST /api/email-tasks/:id/send
+// @desc    Send an email task
+// @access  Private
+router.post('/:id/send', authenticate, mustOwnEmailTask(), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const task = req.emailTask!;
+  
+  try {
+    // Send the email using the email service
+    await emailService.sendEmail(
+      task.recipient,
+      task.subject,
+      task.draftContent || task.content || 'No content provided'
+    );
+    
+    // Mark as sent
+    await task.markAsSent();
+    
+    res.status(200).json({
+      message: 'Email sent successfully',
+      task: await EmailTask.findById(req.params['id'])
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to send email',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}));
+
+// @route   POST /api/email-tasks/send-welcome
+// @desc    Send welcome email
+// @access  Private
+router.post('/send-welcome', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { email, name } = req.body;
+  
+  if (!email || !name) {
+    res.status(400).json({ error: 'Email and name are required' });
+    return;
+  }
+  
+  try {
+    await emailService.sendWelcomeEmail(email, name);
+    res.status(200).json({ message: 'Welcome email sent successfully' });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to send welcome email',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}));
+
+// @route   POST /api/email-tasks/send-password-reset
+// @desc    Send password reset email
+// @access  Private
+router.post('/send-password-reset', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { email, resetToken } = req.body;
+  
+  if (!email || !resetToken) {
+    res.status(400).json({ error: 'Email and reset token are required' });
+    return;
+  }
+  
+  try {
+    await emailService.sendPasswordResetEmail(email, resetToken);
+    res.status(200).json({ message: 'Password reset email sent successfully' });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Failed to send password reset email',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 }));
 
 export default router;

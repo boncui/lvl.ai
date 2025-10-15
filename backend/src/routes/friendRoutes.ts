@@ -1,14 +1,20 @@
-import { Request, Response, NextFunction } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import { body, param } from 'express-validator';
 import User from '@/models/User';
 import { CustomError } from '@/middleware/errorHandler';
+import authenticate from '../middleware/auth';
 
-// @desc    Send friend request
+const router = Router();
+
 // @route   POST /api/friends/request
+// @desc    Send friend request
 // @access  Private
-export const sendFriendRequest = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.post('/request', authenticate, [
+  body('recipientId').isMongoId().withMessage('Please provide a valid user ID')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { recipientId } = req.body;
-    const requesterId = (req as any).user.id;
+    const requesterId = (req as any).user['id'];
 
     // Check if recipient exists
     const recipient = await User.findById(recipientId);
@@ -59,15 +65,17 @@ export const sendFriendRequest = async (req: Request, res: Response, next: NextF
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Accept friend request
 // @route   PUT /api/friends/accept/:userId
+// @desc    Accept friend request
 // @access  Private
-export const acceptFriendRequest = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.put('/accept/:userId', authenticate, [
+  param('userId').isMongoId().withMessage('Please provide a valid user ID')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { userId } = req.params;
-    const currentUserId = (req as any).user.id;
+    const currentUserId = (req as any).user['id'];
 
     const currentUser = await User.findById(currentUserId);
     if (!currentUser) {
@@ -75,7 +83,7 @@ export const acceptFriendRequest = async (req: Request, res: Response, next: Nex
     }
 
     // Check if request exists
-    if (!currentUser.friendRequests.received.includes(userId)) {
+    if (!currentUser.friendRequests.received.includes(userId as any)) {
       throw new CustomError('No friend request found from this user', 404);
     }
 
@@ -85,7 +93,7 @@ export const acceptFriendRequest = async (req: Request, res: Response, next: Nex
     });
 
     // Remove from sender's sent requests
-    await User.findByIdAndUpdate(userId, {
+    await User.findByIdAndUpdate(userId as any, {
       $pull: { 'friendRequests.sent': currentUserId }
     });
 
@@ -94,7 +102,7 @@ export const acceptFriendRequest = async (req: Request, res: Response, next: Nex
       $addToSet: { friends: userId }
     });
 
-    await User.findByIdAndUpdate(userId, {
+    await User.findByIdAndUpdate(userId as any, {
       $addToSet: { friends: currentUserId }
     });
 
@@ -105,15 +113,17 @@ export const acceptFriendRequest = async (req: Request, res: Response, next: Nex
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Decline friend request
 // @route   PUT /api/friends/decline/:userId
+// @desc    Decline friend request
 // @access  Private
-export const declineFriendRequest = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.put('/decline/:userId', authenticate, [
+  param('userId').isMongoId().withMessage('Please provide a valid user ID')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { userId } = req.params;
-    const currentUserId = (req as any).user.id;
+    const currentUserId = (req as any).user['id'];
 
     const currentUser = await User.findById(currentUserId);
     if (!currentUser) {
@@ -121,7 +131,7 @@ export const declineFriendRequest = async (req: Request, res: Response, next: Ne
     }
 
     // Check if request exists
-    if (!currentUser.friendRequests.received.includes(userId)) {
+    if (!currentUser.friendRequests.received.includes(userId as any)) {
       throw new CustomError('No friend request found from this user', 404);
     }
 
@@ -131,7 +141,7 @@ export const declineFriendRequest = async (req: Request, res: Response, next: Ne
     });
 
     // Remove from sender's sent requests
-    await User.findByIdAndUpdate(userId, {
+    await User.findByIdAndUpdate(userId as any, {
       $pull: { 'friendRequests.sent': currentUserId }
     });
 
@@ -142,14 +152,14 @@ export const declineFriendRequest = async (req: Request, res: Response, next: Ne
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Get all friends
 // @route   GET /api/friends
+// @desc    Get all friends
 // @access  Private
-export const getFriends = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/', authenticate, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).user['id'];
 
     const user = await User.findById(userId).populate('friends', 'name email avatar');
 
@@ -161,14 +171,14 @@ export const getFriends = async (req: Request, res: Response, next: NextFunction
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Get pending friend requests
 // @route   GET /api/friends/pending
+// @desc    Get pending friend requests
 // @access  Private
-export const getPendingRequests = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/pending', authenticate, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).user['id'];
 
     const user = await User.findById(userId).populate('friendRequests.received', 'name email avatar');
 
@@ -180,14 +190,14 @@ export const getPendingRequests = async (req: Request, res: Response, next: Next
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Get sent friend requests
 // @route   GET /api/friends/sent
+// @desc    Get sent friend requests
 // @access  Private
-export const getSentRequests = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/sent', authenticate, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const userId = (req as any).user.id;
+    const userId = (req as any).user['id'];
 
     const user = await User.findById(userId).populate('friendRequests.sent', 'name email avatar');
 
@@ -199,15 +209,17 @@ export const getSentRequests = async (req: Request, res: Response, next: NextFun
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Remove friend
 // @route   DELETE /api/friends/:userId
+// @desc    Remove friend
 // @access  Private
-export const removeFriend = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.delete('/:userId', authenticate, [
+  param('userId').isMongoId().withMessage('Please provide a valid user ID')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { userId } = req.params;
-    const currentUserId = (req as any).user.id;
+    const currentUserId = (req as any).user['id'];
 
     const currentUser = await User.findById(currentUserId);
     if (!currentUser) {
@@ -215,7 +227,7 @@ export const removeFriend = async (req: Request, res: Response, next: NextFuncti
     }
 
     // Check if friends
-    if (!currentUser.friends.includes(userId)) {
+    if (!currentUser.friends.includes(userId as any)) {
       throw new CustomError('Not friends with this user', 404);
     }
 
@@ -224,7 +236,7 @@ export const removeFriend = async (req: Request, res: Response, next: NextFuncti
       $pull: { friends: userId }
     });
 
-    await User.findByIdAndUpdate(userId, {
+    await User.findByIdAndUpdate(userId as any, {
       $pull: { friends: currentUserId }
     });
 
@@ -235,15 +247,17 @@ export const removeFriend = async (req: Request, res: Response, next: NextFuncti
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Block user
 // @route   PUT /api/friends/block/:userId
+// @desc    Block user
 // @access  Private
-export const blockUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.put('/block/:userId', authenticate, [
+  param('userId').isMongoId().withMessage('Please provide a valid user ID')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { userId } = req.params;
-    const currentUserId = (req as any).user.id;
+    const currentUserId = (req as any).user['id'];
 
     // Check if target user exists
     const targetUser = await User.findById(userId);
@@ -262,11 +276,11 @@ export const blockUser = async (req: Request, res: Response, next: NextFunction)
     }
 
     // Remove from friends if they are friends
-    if (currentUser.friends.includes(userId)) {
+    if (currentUser.friends.includes(userId as any)) {
       await User.findByIdAndUpdate(currentUserId, {
         $pull: { friends: userId }
       });
-      await User.findByIdAndUpdate(userId, {
+      await User.findByIdAndUpdate(userId as any, {
         $pull: { friends: currentUserId }
       });
     }
@@ -279,7 +293,7 @@ export const blockUser = async (req: Request, res: Response, next: NextFunction)
       }
     });
 
-    await User.findByIdAndUpdate(userId, {
+    await User.findByIdAndUpdate(userId as any, {
       $pull: { 
         'friendRequests.sent': currentUserId,
         'friendRequests.received': currentUserId
@@ -298,15 +312,17 @@ export const blockUser = async (req: Request, res: Response, next: NextFunction)
   } catch (error) {
     next(error);
   }
-};
+});
 
-// @desc    Unblock user
 // @route   PUT /api/friends/unblock/:userId
+// @desc    Unblock user
 // @access  Private
-export const unblockUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.put('/unblock/:userId', authenticate, [
+  param('userId').isMongoId().withMessage('Please provide a valid user ID')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { userId } = req.params;
-    const currentUserId = (req as any).user.id;
+    const currentUserId = (req as any).user['id'];
 
     const currentUser = await User.findById(currentUserId);
     if (!currentUser) {
@@ -314,7 +330,7 @@ export const unblockUser = async (req: Request, res: Response, next: NextFunctio
     }
 
     // Check if user is blocked
-    if (!currentUser.blockedUsers.includes(userId)) {
+    if (!currentUser.blockedUsers.includes(userId as any)) {
       throw new CustomError('User is not blocked', 404);
     }
 
@@ -330,4 +346,6 @@ export const unblockUser = async (req: Request, res: Response, next: NextFunctio
   } catch (error) {
     next(error);
   }
-};
+});
+
+export default router;

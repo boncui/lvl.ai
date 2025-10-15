@@ -10,6 +10,7 @@ import MeetingTask, { IMeetingTask } from '../MeetingTask';
 import ProjectTask, { IProjectTask } from '../ProjectTask';
 import Task, { ITask } from '../Task';
 import WorkTask, { IWorkTask } from '../WorkTask';
+import HealthTask, { IHealthTask } from '../HealthTask';
 
 export { IFoodTask, FoodTask };
 export { IHomeworkTask, HomeworkTask };
@@ -18,6 +19,7 @@ export { IMeetingTask, MeetingTask };
 export { IProjectTask, ProjectTask };
 export { ITask, Task };
 export { IWorkTask, WorkTask };
+export { IHealthTask, HealthTask };
 
 // Union type for all task interfaces
 export type AnyTask = 
@@ -27,7 +29,8 @@ export type AnyTask =
   | IMeetingTask 
   | IProjectTask 
   | ITask 
-  | IWorkTask;
+  | IWorkTask
+  | IHealthTask;
 
 // Task model mapping for dynamic model selection
 export const TaskModels = {
@@ -38,4 +41,5 @@ export const TaskModels = {
   [TaskType.PROJECT]: ProjectTask,
   [TaskType.PERSONAL]: Task,
   [TaskType.WORK]: WorkTask,
+  [TaskType.HEALTH]: HealthTask,
 } as const;
