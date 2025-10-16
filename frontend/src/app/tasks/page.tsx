@@ -1,228 +1,236 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { CategoryBanner } from '@/components/tasks';
-import { TaskType, TaskPriority, TaskStatus } from '@/lib/types';
+import CreateTaskModal from '@/components/tasks/CreateTaskModal';
+import { TaskList } from '@/components/tasks/TaskList';
+import ClientGuard from '@/components/ClientGuard';
+import { TaskPriority, TaskStatus, Task, ITask } from '@/lib/types';
+import { TaskAPI } from '@/lib/api';
 import { 
   PlusIcon, 
   MagnifyingGlassIcon, 
-  FunnelIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  CalendarIcon
+  FunnelIcon
 } from '@heroicons/react/24/outline';
+
+
+// Display type for local list
+type DisplayTask = {
+  id: string | number;
+  title: string;
+  description: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  dueDate: string;
+  tags: string[];
+  points: number;
+};
 
 export default function TasksPage() {
   // State for filtering
-  const [selectedCategory, setSelectedCategory] = useState<TaskType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // State for task form
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
-  // Mock data - in real app, this would come from API
-  const tasks = [
-    { 
-      id: 1, 
-      title: 'Complete project proposal', 
-      description: 'Finish the Q1 project proposal for the new feature',
-      priority: TaskPriority.HIGH, 
-      status: TaskStatus.IN_PROGRESS, 
-      dueDate: '2024-01-15',
-      taskType: TaskType.PROJECT,
-      tags: ['work', 'urgent'],
-      xpValue: 50
-    },
-    { 
-      id: 2, 
-      title: 'Grocery shopping', 
-      description: 'Buy ingredients for the week',
-      priority: TaskPriority.MEDIUM, 
-      status: TaskStatus.PENDING, 
-      dueDate: '2024-01-14',
-      taskType: TaskType.FOOD,
-      tags: ['shopping', 'food'],
-      xpValue: 20
-    },
-    { 
-      id: 3, 
-      title: 'Morning workout', 
-      description: '30-minute cardio session',
-      priority: TaskPriority.HIGH, 
-      status: TaskStatus.COMPLETED, 
-      dueDate: '2024-01-13',
-      taskType: TaskType.HEALTH,
-      tags: ['fitness', 'morning'],
-      xpValue: 30
-    },
-    { 
-      id: 4, 
-      title: 'Team meeting prep', 
-      description: 'Prepare slides for the weekly team meeting',
-      priority: TaskPriority.URGENT, 
-      status: TaskStatus.PENDING, 
-      dueDate: '2024-01-14',
-      taskType: TaskType.MEETING,
-      tags: ['work', 'presentation'],
-      xpValue: 40
-    },
-    { 
-      id: 5, 
-      title: 'Read React documentation', 
-      description: 'Study the new React 18 features',
-      priority: TaskPriority.LOW, 
-      status: TaskStatus.PENDING, 
-      dueDate: '2024-01-20',
-      taskType: TaskType.HOMEWORK,
-      tags: ['learning', 'react'],
-      xpValue: 25
-    },
-    { 
-      id: 6, 
-      title: 'Send follow-up email', 
-      description: 'Follow up with client about project status',
-      priority: TaskPriority.MEDIUM, 
-      status: TaskStatus.PENDING, 
-      dueDate: '2024-01-16',
-      taskType: TaskType.EMAIL,
-      tags: ['communication', 'client'],
-      xpValue: 15
-    },
-    { 
-      id: 7, 
-      title: 'Coffee with Sarah', 
-      description: 'Catch up with friend over coffee',
-      priority: TaskPriority.LOW, 
-      status: TaskStatus.PENDING, 
-      dueDate: '2024-01-18',
-      taskType: TaskType.SOCIAL,
-      tags: ['friends', 'social'],
-      xpValue: 10
-    },
-    { 
-      id: 8, 
-      title: 'Code review', 
-      description: 'Review pull request for new feature',
-      priority: TaskPriority.HIGH, 
-      status: TaskStatus.IN_PROGRESS, 
-      dueDate: '2024-01-15',
-      taskType: TaskType.WORK,
-      tags: ['development', 'review'],
-      xpValue: 35
-    },
-    { 
-      id: 9, 
-      title: 'Organize desk', 
-      description: 'Clean and organize workspace',
-      priority: TaskPriority.LOW, 
-      status: TaskStatus.PENDING, 
-      dueDate: '2024-01-22',
-      taskType: TaskType.PERSONAL,
-      tags: ['organization', 'workspace'],
-      xpValue: 15
-    },
-    { 
-      id: 10, 
-      title: 'Miscellaneous task', 
-      description: 'Random task that doesn\'t fit other categories',
-      priority: TaskPriority.MEDIUM, 
-      status: TaskStatus.PENDING, 
-      dueDate: '2024-01-19',
-      taskType: TaskType.OTHER,
-      tags: ['misc'],
-      xpValue: 20
-    },
-  ];
+  // State for tasks
+  const [tasks, setTasks] = useState<DisplayTask[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch tasks on mount
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const fetchTasks = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await TaskAPI.getAllTasks();
+      
+      // Convert ITask[] to DisplayTask[]
+      const displayTasks: DisplayTask[] = response.data.map((task: ITask) => ({
+        id: task._id,
+        title: task.title,
+        description: task.description || '',
+        priority: task.priority,
+        status: task.status,
+        dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
+        tags: task.tags || [],
+        points: task.points,
+      }));
+
+      setTasks(displayTasks);
+    } catch (err: any) {
+      console.error('Error fetching tasks:', err);
+      setError(err.response?.data?.message || 'Failed to fetch tasks. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Calculate task counts by category
   const taskCounts = useMemo(() => {
-    const counts: Record<TaskType | 'all', number> = {
+    const counts: Record<string, number> = {
       all: tasks.length,
-      [TaskType.FOOD]: 0,
-      [TaskType.HOMEWORK]: 0,
-      [TaskType.EMAIL]: 0,
-      [TaskType.MEETING]: 0,
-      [TaskType.PROJECT]: 0,
-      [TaskType.PERSONAL]: 0,
-      [TaskType.WORK]: 0,
-      [TaskType.HEALTH]: 0,
-      [TaskType.SOCIAL]: 0,
-      [TaskType.OTHER]: 0,
     };
 
     tasks.forEach(task => {
-      counts[task.taskType]++;
+      task.tags.forEach(tag => {
+        const category = tag.toLowerCase();
+        counts[category] = (counts[category] || 0) + 1;
+      });
     });
 
     return counts;
   }, [tasks]);
 
-  // Filter tasks based on selected category and search query
+  // Filter tasks based on search query
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
-      const matchesCategory = selectedCategory === 'all' || task.taskType === selectedCategory;
       const matchesSearch = searchQuery === '' || 
         task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         task.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
         task.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
       
-      return matchesCategory && matchesSearch;
+      return matchesSearch;
     });
-  }, [tasks, selectedCategory, searchQuery]);
+  }, [tasks, searchQuery]);
 
-  const getPriorityColor = (priority: TaskPriority) => {
-    switch (priority) {
-      case TaskPriority.URGENT: return 'error';
-      case TaskPriority.HIGH: return 'warning';
-      case TaskPriority.MEDIUM: return 'default';
-      case TaskPriority.LOW: return 'secondary';
-      default: return 'default';
+  // Task creation handler
+  const handleTaskCreated = (created: Task) => {
+    const displayTask: DisplayTask = {
+      id: created._id,
+      title: created.title,
+      description: created.description || '',
+      priority: created.priority,
+      status: created.status,
+      dueDate: created.dueDate ? new Date(created.dueDate).toISOString().split('T')[0] : '',
+      tags: created.tags || [],
+      points: created.points,
+    };
+    
+    setTasks((prev) => [displayTask, ...prev]);
+    setShowTaskForm(false);
+    setSelectedTags([]);
+  };
+
+  const handleCancelTaskForm = () => {
+    setShowTaskForm(false);
+    setSelectedTags([]);
+  };
+
+  const handleAddTask = (category?: string) => {
+    if (category && category !== 'all') {
+      setSelectedTags([category]);
+    } else {
+      setSelectedTags([]);
+    }
+    setShowTaskForm(true);
+  };
+
+  // Task action handlers
+  const handleEditTask = (taskId: string | number) => {
+    // TODO: Implement edit functionality
+    console.log('Edit task:', taskId);
+  };
+
+  const handleCompleteTask = async (taskId: string | number) => {
+    try {
+      await TaskAPI.completeTask(taskId.toString());
+      
+      // Update local state
+      setTasks(prev => prev.map(task => 
+        task.id === taskId 
+          ? { ...task, status: TaskStatus.COMPLETED }
+          : task
+      ));
+    } catch (err: any) {
+      console.error('Error completing task:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to complete task. Please try again.';
+      setError(errorMessage);
+      // Clear error after 5 seconds
+      setTimeout(() => setError(null), 5000);
     }
   };
 
-  const getStatusIcon = (status: TaskStatus) => {
-    switch (status) {
-      case TaskStatus.COMPLETED: return <CheckCircleIcon className="h-5 w-5 text-success" />;
-      case TaskStatus.IN_PROGRESS: return <ClockIcon className="h-5 w-5 text-warning" />;
-      case TaskStatus.PENDING: return <ExclamationTriangleIcon className="h-5 w-5 text-muted-foreground" />;
-      case TaskStatus.CANCELLED: return <ExclamationTriangleIcon className="h-5 w-5 text-error" />;
-      default: return null;
+  const handleDeleteTask = async (taskId: string | number) => {
+    if (!confirm('Are you sure you want to delete this task?')) {
+      return;
+    }
+
+    try {
+      await TaskAPI.deleteTask(taskId.toString());
+      
+      // Update local state
+      setTasks(prev => prev.filter(task => task.id !== taskId));
+    } catch (err: any) {
+      console.error('Error deleting task:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to delete task. Please try again.';
+      setError(errorMessage);
+      // Clear error after 5 seconds
+      setTimeout(() => setError(null), 5000);
     }
   };
 
-  const getTaskTypeColor = (taskType: TaskType) => {
-    switch (taskType) {
-      case TaskType.WORK: return 'primary';
-      case TaskType.PERSONAL: return 'secondary';
-      case TaskType.HEALTH: return 'success';
-      case TaskType.MEETING: return 'warning';
-      case TaskType.FOOD: return 'success';
-      case TaskType.HOMEWORK: return 'primary';
-      case TaskType.EMAIL: return 'secondary';
-      case TaskType.PROJECT: return 'primary';
-      case TaskType.SOCIAL: return 'warning';
-      case TaskType.OTHER: return 'outline';
-      default: return 'default';
+  const getEmptyMessage = () => {
+    if (searchQuery) {
+      return 'No tasks match your search.';
     }
+    return 'No tasks yet. Click "Add Task" to create your first task!';
   };
 
   return (
-    <Sidebar>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+    <ClientGuard>
+      <Sidebar>
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Tasks</h1>
             <p className="text-muted-foreground">Manage and track your daily tasks</p>
           </div>
-          <Button className="flex items-center gap-2">
+          <Button 
+            className="flex items-center gap-2"
+            onClick={() => handleAddTask()}
+          >
             <PlusIcon className="h-4 w-4" />
             Add Task
           </Button>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <Card className="border-red-500">
+            <CardContent className="p-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3 flex-1">
+                  <h3 className="text-sm font-medium text-red-800">Error loading tasks</h3>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-3"
+                    onClick={fetchTasks}
+                  >
+                    Try Again
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Filters and Search */}
         <Card>
@@ -244,97 +252,67 @@ export default function TasksPage() {
                 </Button>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="default" size="sm">All Tasks</Badge>
-                <Badge variant="secondary" size="sm">Pending</Badge>
-                <Badge variant="success" size="sm">Completed</Badge>
+                <Badge variant="default" size="sm">
+                  {tasks.length} Total
+                </Badge>
+                <Badge variant="secondary" size="sm">
+                  {tasks.filter(t => t.status === TaskStatus.PENDING).length} Pending
+                </Badge>
+                <Badge variant="success" size="sm">
+                  {tasks.filter(t => t.status === TaskStatus.COMPLETED).length} Completed
+                </Badge>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Category Banner */}
+        {/* Tag Filter */}
         <Card>
           <CardContent className="p-6">
-            <CategoryBanner
-              selectedCategory={selectedCategory}
-              onCategorySelect={setSelectedCategory}
-              taskCounts={taskCounts}
-            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                className="capitalize"
+              >
+                All ({taskCounts.all})
+              </Button>
+              {Object.entries(taskCounts)
+                .filter(([tag]) => tag !== 'all')
+                .map(([tag, count]) => (
+                  <Button
+                    key={tag}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAddTask(tag)}
+                    className="capitalize"
+                  >
+                    {tag} ({count})
+                  </Button>
+                ))}
+            </div>
           </CardContent>
         </Card>
 
         {/* Tasks List */}
-        <div className="space-y-4">
-          {filteredTasks.length === 0 ? (
-            <Card>
-              <CardContent className="p-6 text-center">
-                <div className="text-muted-foreground">
-                  {searchQuery || selectedCategory !== 'all' 
-                    ? 'No tasks match your current filters.' 
-                    : 'No tasks available.'}
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            filteredTasks.map((task) => (
-              <Card key={task.id} className="hover:shadow-medium transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-4 flex-1">
-                      {getStatusIcon(task.status)}
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="font-semibold text-foreground">{task.title}</h3>
-                          <Badge variant={getTaskTypeColor(task.taskType) as 'default' | 'secondary' | 'primary' | 'success' | 'warning' | 'outline'} size="sm">
-                            {task.taskType}
-                          </Badge>
-                          <Badge variant={getPriorityColor(task.priority) as 'default' | 'secondary' | 'warning' | 'error'} size="sm">
-                            {task.priority}
-                          </Badge>
-                        </div>
-                        <p className="text-muted-foreground mb-3">{task.description}</p>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-4 w-4" />
-                            Due: {task.dueDate}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-medium text-primary">{task.xpValue} XP</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 mt-3">
-                          {task.tags.map((tag, index) => (
-                            <Badge key={index} variant="outline" size="sm">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 ml-4">
-                      <Button variant="outline" size="sm">
-                        Edit
-                      </Button>
-                      {task.status !== TaskStatus.COMPLETED && (
-                        <Button size="sm">
-                          Complete
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
-
-        {/* Load More */}
-        <div className="text-center">
-          <Button variant="outline">
-            Load More Tasks
-          </Button>
-        </div>
+        <TaskList
+          tasks={filteredTasks}
+          isLoading={isLoading}
+          onEdit={handleEditTask}
+          onComplete={handleCompleteTask}
+          onDelete={handleDeleteTask}
+          emptyMessage={getEmptyMessage()}
+        />
       </div>
-    </Sidebar>
+
+      {/* Task Form Modal */}
+      <CreateTaskModal
+        isOpen={showTaskForm}
+        onClose={handleCancelTaskForm}
+        initialTags={selectedTags}
+        onCreated={handleTaskCreated}
+      />
+      </Sidebar>
+    </ClientGuard>
   );
 }

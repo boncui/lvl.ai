@@ -50,16 +50,17 @@ class HttpError extends Error {
 }
 
 function readAccessToken(req: Request): string | null {
-  // ✅ Primary: cookies (browser clients)
+  // ✅ Primary: Authorization header (standard REST API pattern)
+  const auth = req.headers.authorization;
+  if (auth) {
+    const m = auth.match(/^Bearer\s+(.+)$/i);
+    if (m) return m[1]?.trim() || null;
+  }
+
+  // ✅ Fallback: cookies (for cookie-based auth if needed)
   const cookieToken = req.cookies?.['accessToken'];
   if (cookieToken) return cookieToken;
 
-  // (Optional) allow Authorization header for non-browser clients
-  if (process.env['ALLOW_AUTH_HEADER'] === 'true') {
-    const auth = req.headers.authorization;
-    const m = auth?.match(/^Bearer\s+(.+)$/i);
-    if (m) return m[1]?.trim() || null;
-  }
   return null;
 }
 

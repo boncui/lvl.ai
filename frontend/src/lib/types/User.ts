@@ -1,81 +1,13 @@
-// Frontend types based on backend User model
-
-// ---------- ENUMS ----------
-export enum LifeCategory {
-  FITNESS = "Fitness",
-  PRODUCTIVITY = "Productivity",
-  NUTRITION = "Nutrition",
-  FINANCE = "Finance",
-  SOCIAL = "Social",
-  KNOWLEDGE = "Knowledge",
-}
+// Frontend types based on simplified backend User model
 
 // ---------- INTERFACES ----------
-export interface ILevelProgress {
-  level: number;
-  xp: number;
-  dailyStreak: number;
-  totalCompleted: number;
-}
-
-export interface IMetric {
-  metricType: "workout" | "meal" | "finance" | "study" | "sleep";
-  value: number;
-  unit?: string;
-  date: Date;
-  notes?: string;
-}
-
-export interface IIntegration {
-  provider: string; // e.g. Google, Strava, Plaid, OpenAI, Fitbit
-  connected: boolean;
-  lastSync?: Date;
-  tokens?: Record<string, string>;
-}
-
 export interface IUserPreferences {
   timezone: string;
   dailyGoalXP: number;
-  preferredWorkouts?: string[];
-  dietaryPreferences?: string[];
   notificationSettings?: {
     email: boolean;
     push: boolean;
   };
-}
-
-export interface IUserTasks {
-  foodTasks: string[];
-  homeworkTasks: string[];
-  emailTasks: string[];
-  meetingTasks: string[];
-  projectTasks: string[];
-  personalTasks: string[];
-  workTasks: string[];
-  healthTasks: string[];
-  socialTasks: string[];
-  otherTasks: string[];
-}
-
-export interface ICalendarEvent {
-  title: string;
-  start: Date;
-  end: Date;
-  description?: string;
-  source?: string;
-}
-
-export interface IUserFinances {
-  income: number;
-  expenses: number;
-  savings: number;
-  goals?: string[];
-}
-
-export interface IAgentMemory {
-  lastConversation?: string;
-  suggestions?: string[];
-  autoActions?: string[];
 }
 
 export interface IFriendRequests {
@@ -83,49 +15,54 @@ export interface IFriendRequests {
   received: string[];
 }
 
-// ---------- MAIN USER INTERFACE ----------
+// ---------- BACKEND USER INTERFACE ----------
+// This matches the backend IUser interface
 export interface IUser {
+  _id?: string;
   name: string;
   email: string;
-  password: string;
+  password?: string; // Optional because it's select: false on backend
   avatar?: string;
 
-  // AI agent memory / preferences
+  // Preferences
   preferences: IUserPreferences;
-  levels: Record<LifeCategory, ILevelProgress>;
-  tasks: IUserTasks;
-  metrics: IMetric[];
-  integrations: IIntegration[];
-  calendarEvents?: ICalendarEvent[];
-  finances?: IUserFinances;
-  agentMemory?: IAgentMemory;
 
-  // Verification & Social
+  // Leveling system - simple overall XP
+  level: number;
+  xp: number;
+  totalTasksCompleted: number;
+
+  // Tasks - simple array reference
+  tasks: string[];
+
+  // Authentication & Security
   isEmailVerified: boolean;
+  emailVerificationToken?: string;
+  passwordResetToken?: string;
+  passwordResetExpires?: Date | string;
+
+  // Social features
   friends: string[];
   friendRequests: IFriendRequests;
   blockedUsers: string[];
 
   // Timestamps
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
 
-// ---------- FRONTEND-SPECIFIC TYPES ----------
-// These are the types used in the frontend (without Mongoose Document)
+// ---------- FRONTEND USER TYPE ----------
+// Simplified version for frontend use with parsed dates
 export interface User {
   _id: string;
   name: string;
   email: string;
   avatar?: string;
   preferences: UserPreferences;
-  levels: Record<LifeCategory, LevelProgress>;
-  tasks: UserTasks;
-  metrics: Metric[];
-  integrations: Integration[];
-  calendarEvents?: CalendarEvent[];
-  finances?: UserFinances;
-  agentMemory?: AgentMemory;
+  level: number;
+  xp: number;
+  totalTasksCompleted: number;
+  tasks: string[];
   isEmailVerified: boolean;
   friends: string[];
   friendRequests: FriendRequests;
@@ -135,74 +72,80 @@ export interface User {
 }
 
 // Simplified versions for frontend use
-export interface LevelProgress {
-  level: number;
-  xp: number;
-  dailyStreak: number;
-  totalCompleted: number;
-}
-
-export interface Metric {
-  metricType: "workout" | "meal" | "finance" | "study" | "sleep";
-  value: number;
-  unit?: string;
-  date: Date;
-  notes?: string;
-}
-
-export interface Integration {
-  provider: string;
-  connected: boolean;
-  lastSync?: Date;
-  tokens?: Record<string, string>;
-}
-
 export interface UserPreferences {
   timezone: string;
   dailyGoalXP: number;
-  preferredWorkouts?: string[];
-  dietaryPreferences?: string[];
   notificationSettings?: {
     email: boolean;
     push: boolean;
   };
 }
 
-export interface UserTasks {
-  foodTasks: string[];
-  homeworkTasks: string[];
-  emailTasks: string[];
-  meetingTasks: string[];
-  projectTasks: string[];
-  personalTasks: string[];
-  workTasks: string[];
-  healthTasks: string[];
-  socialTasks: string[];
-  otherTasks: string[];
-}
-
-export interface CalendarEvent {
-  title: string;
-  start: Date;
-  end: Date;
-  description?: string;
-  source?: string;
-}
-
-export interface UserFinances {
-  income: number;
-  expenses: number;
-  savings: number;
-  goals?: string[];
-}
-
-export interface AgentMemory {
-  lastConversation?: string;
-  suggestions?: string[];
-  autoActions?: string[];
-}
-
 export interface FriendRequests {
   sent: string[];
   received: string[];
 }
+
+// ---------- USER CREATE/UPDATE DTOS ----------
+export interface RegisterUserDTO {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface LoginUserDTO {
+  email: string;
+  password: string;
+}
+
+export interface UpdateUserDTO {
+  name?: string;
+  email?: string;
+  avatar?: string;
+  preferences?: Partial<IUserPreferences>;
+}
+
+export interface UpdatePasswordDTO {
+  currentPassword: string;
+  newPassword: string;
+}
+
+// ---------- API RESPONSE TYPES ----------
+export interface UserResponse {
+  success: boolean;
+  data: IUser;
+  token?: string;
+}
+
+export interface AuthResponse {
+  success: boolean;
+  data: {
+    user: IUser;
+    token: string;
+  };
+}
+
+// ---------- HELPER FUNCTIONS ----------
+export const parseUserDates = (user: IUser): User => ({
+  ...user,
+  _id: user._id || '',
+  createdAt: new Date(user.createdAt),
+  updatedAt: new Date(user.updatedAt),
+  passwordResetExpires: undefined, // Don't include security fields in frontend
+  emailVerificationToken: undefined,
+  passwordResetToken: undefined,
+} as User);
+
+export const getNextLevelXP = (level: number): number => {
+  // XP required for next level: level * 100
+  return level * 100;
+};
+
+export const getXPProgress = (user: User): number => {
+  const nextLevelXP = getNextLevelXP(user.level);
+  return (user.xp / nextLevelXP) * 100;
+};
+
+export const canLevelUp = (user: User): boolean => {
+  return user.xp >= getNextLevelXP(user.level);
+};

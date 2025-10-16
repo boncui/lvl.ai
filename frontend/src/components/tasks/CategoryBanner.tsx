@@ -8,6 +8,7 @@ interface CategoryBannerProps {
   selectedCategory?: TaskType | 'all';
   onCategorySelect: (category: TaskType | 'all') => void;
   taskCounts?: Record<TaskType | 'all', number>;
+  onAddTask?: (taskType: TaskType) => void;
 }
 
 const categoryConfig = {
@@ -79,7 +80,7 @@ const categoryConfig = {
   }
 };
 
-export function CategoryBanner({ selectedCategory = 'all', onCategorySelect, taskCounts = {} }: CategoryBannerProps) {
+export function CategoryBanner({ selectedCategory = 'all', onCategorySelect, taskCounts = {} as Record<TaskType | 'all', number>, onAddTask }: CategoryBannerProps) {
   const categories = Object.values(TaskType) as TaskType[];
   
   return (
@@ -91,7 +92,7 @@ export function CategoryBanner({ selectedCategory = 'all', onCategorySelect, tas
           <p className="text-sm text-muted-foreground">Filter tasks by category to stay organized</p>
         </div>
         <div className="text-sm text-muted-foreground">
-          {taskCounts.all ? `${taskCounts.all} total tasks` : ''}
+          {taskCounts?.all ? `${taskCounts.all} total tasks` : ''}
         </div>
       </div>
 
@@ -126,27 +127,37 @@ export function CategoryBanner({ selectedCategory = 'all', onCategorySelect, tas
           const isSelected = selectedCategory === category;
           
           return (
-            <button
-              key={category}
-              onClick={() => onCategorySelect(category)}
-              className={`transition-all duration-200 hover:scale-105 ${
-                isSelected ? 'ring-2 ring-primary ring-offset-2' : ''
-              }`}
-            >
-              <Badge 
-                variant={config.variant}
-                size="lg"
-                className="cursor-pointer hover:opacity-80 flex items-center gap-2 px-4 py-2"
+            <div key={category} className="flex items-center gap-1">
+              <button
+                onClick={() => onCategorySelect(category)}
+                className={`transition-all duration-200 hover:scale-105 ${
+                  isSelected ? 'ring-2 ring-primary ring-offset-2' : ''
+                }`}
               >
-                <span className="text-base">{config.icon}</span>
-                <span className="font-medium">{config.label}</span>
-                {count > 0 && (
-                  <span className="ml-1 px-2 py-0.5 bg-white/20 rounded-full text-xs">
-                    {count}
-                  </span>
-                )}
-              </Badge>
-            </button>
+                <Badge 
+                  variant={config.variant}
+                  size="lg"
+                  className="cursor-pointer hover:opacity-80 flex items-center gap-2 px-4 py-2"
+                >
+                  <span className="text-base">{config.icon}</span>
+                  <span className="font-medium">{config.label}</span>
+                  {count > 0 && (
+                    <span className="ml-1 px-2 py-0.5 bg-white/20 rounded-full text-xs">
+                      {count}
+                    </span>
+                  )}
+                </Badge>
+              </button>
+              {onAddTask && (
+                <button
+                  onClick={() => onAddTask(category)}
+                  className="ml-1 p-1 rounded-full hover:bg-primary/10 transition-colors"
+                  title={`Add ${config.label} task`}
+                >
+                  <span className="text-sm text-muted-foreground hover:text-primary">+</span>
+                </button>
+              )}
+            </div>
           );
         })}
       </div>

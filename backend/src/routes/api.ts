@@ -4,21 +4,15 @@ import authenticate, { AuthenticatedRequest } from '../middleware/auth';
 // Import auth routes
 import authRoutes from './authRoutes';
 
-// Import all task routes
+// Import task routes
 import taskRoutes from './taskRoutes';
-import foodRoutes from './foodRoutes';
-import homeworkRoutes from './homeworkRoutes';
-import emailRoutes from './emailRoutes';
-import meetingRoutes from './meetingRoutes';
-import projectRoutes from './projectRoutes';
-import workRoutes from './workRoutes';
 
 // Import user and friend routes
 import userRoutes from './userRoutes';
 import friendRoutes from './friendRoutes';
 
-// Import additional task routes
-import healthRoutes from './healthRoutes';
+// Import AI organizer routes
+import organizerRoutes from './organizerAgentRoutes';
 
 const router = Router();
 
@@ -28,7 +22,7 @@ const router = Router();
 router.get('/', (_req, res) => {
   res.json({
     message: 'LVL.AI API',
-    version: '1.0.0',
+    version: '2.0.0',
     status: 'active',
     timestamp: new Date().toISOString(),
     endpoints: {
@@ -36,14 +30,7 @@ router.get('/', (_req, res) => {
       users: '/api/users',
       friends: '/api/friends',
       tasks: '/api/tasks',
-      foodTasks: '/api/food-tasks',
-      homeworkTasks: '/api/homework-tasks',
-      emailTasks: '/api/email-tasks',
-      meetingTasks: '/api/meeting-tasks',
-      projectTasks: '/api/project-tasks',
-      workTasks: '/api/work-tasks',
-      healthTasks: '/api/health-tasks',
-      socialTasks: '/api/social-tasks',
+      organizer: '/api/organizer',
     }
   });
 });
@@ -65,14 +52,10 @@ router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/friends', friendRoutes);
 
-// Mount all task routes
+// Mount task routes
 router.use('/tasks', taskRoutes);
-router.use('/food-tasks', foodRoutes);
-router.use('/homework-tasks', homeworkRoutes);
-router.use('/email-tasks', emailRoutes);
-router.use('/meeting-tasks', meetingRoutes);
-router.use('/project-tasks', projectRoutes);
-router.use('/work-tasks', workRoutes);
-router.use('/health-tasks', healthRoutes);
+
+// Mount AI organizer routes
+router.use('/organizer', organizerRoutes);
 
 export default router;

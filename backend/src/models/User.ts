@@ -2,104 +2,30 @@
 import mongoose, { Schema, Document } from "mongoose";
 import bcrypt from 'bcryptjs';
 
-// ---------- ENUMS ----------
-export enum LifeCategory {
-  FITNESS = "Fitness",
-  PRODUCTIVITY = "Productivity",
-  NUTRITION = "Nutrition",
-  FINANCE = "Finance",
-  SOCIAL = "Social",
-  KNOWLEDGE = "Knowledge",
-}
-
-export interface ILevelProgress {
-  level: number;
-  xp: number;
-  dailyStreak: number;
-  totalCompleted: number;
-}
-
-
-export interface IMetric {
-  metricType: "workout" | "meal" | "finance" | "study" | "sleep";
-  value: number;
-  unit?: string;
-  date: Date;
-  notes?: string;
-}
-
-export interface IIntegration {
-  provider: string; // e.g. Google, Strava, Plaid, OpenAI, Fitbit
-  connected: boolean;
-  lastSync?: Date;
-  tokens?: Record<string, string>;
-}
-
-// ---------- MAIN USER SCHEMA ----------
+// ---------- USER INTERFACE ----------
 export interface IUser extends Document {
   name: string;
   email: string;
   password: string;
   avatar?: string;
 
-  // AI agent memory / preferences
+  // Preferences
   preferences: {
     timezone: string;
     dailyGoalXP: number;
-    preferredWorkouts?: string[];
-    dietaryPreferences?: string[];
     notificationSettings?: {
       email: boolean;
       push: boolean;
     };
   };
 
-  // Leveling system progress
-  levels: Record<LifeCategory, ILevelProgress>;
+  // Leveling system - simple overall XP
+  level: number;
+  xp: number;
+  totalTasksCompleted: number;
 
-  // Task management - references to all task types
-  tasks: {
-    foodTasks: mongoose.Types.ObjectId[];
-    homeworkTasks: mongoose.Types.ObjectId[];
-    emailTasks: mongoose.Types.ObjectId[];
-    meetingTasks: mongoose.Types.ObjectId[];
-    projectTasks: mongoose.Types.ObjectId[];
-    personalTasks: mongoose.Types.ObjectId[];
-    workTasks: mongoose.Types.ObjectId[];
-    healthTasks: mongoose.Types.ObjectId[];
-    socialTasks: mongoose.Types.ObjectId[];
-    otherTasks: mongoose.Types.ObjectId[];
-  };
-
-  // Metrics (quantified self)
-  metrics: IMetric[];
-
-  // Integrations
-  integrations: IIntegration[];
-
-  // Productivity tracking
-  calendarEvents?: {
-    title: string;
-    start: Date;
-    end: Date;
-    description?: string;
-    source?: string; // e.g., "Google Calendar"
-  }[];
-
-  // Financial overview
-  finances?: {
-    income: number;
-    expenses: number;
-    savings: number;
-    goals?: string[];
-  };
-
-  // AI agent memory
-  agentMemory?: {
-    lastConversation?: string;
-    suggestions?: string[];
-    autoActions?: string[];
-  };
+  // Tasks - simple array reference
+  tasks: mongoose.Types.ObjectId[];
 
   // Authentication & Security
   isEmailVerified: boolean;
@@ -150,109 +76,32 @@ const UserSchema = new Schema<IUser>(
     preferences: {
       timezone: { type: String, default: "UTC" },
       dailyGoalXP: { type: Number, default: 100 },
-      preferredWorkouts: [{ type: String }],
-      dietaryPreferences: [{ type: String }],
       notificationSettings: {
         email: { type: Boolean, default: true },
         push: { type: Boolean, default: false },
       },
     },
 
-    levels: {
-      type: Map,
-      of: {
-        level: { type: Number, default: 1 },
-        xp: { type: Number, default: 0 },
-        dailyStreak: { type: Number, default: 0 },
-        totalCompleted: { type: Number, default: 0 },
-      },
-      default: {},
+    level: {
+      type: Number,
+      default: 1,
+      min: [1, 'Level must be at least 1']
+    },
+    xp: {
+      type: Number,
+      default: 0,
+      min: [0, 'XP cannot be negative']
+    },
+    totalTasksCompleted: {
+      type: Number,
+      default: 0,
+      min: [0, 'Total tasks completed cannot be negative']
     },
 
-    tasks: {
-      foodTasks: [{
-        type: Schema.Types.ObjectId,
-        ref: 'FoodTask'
-      }],
-      homeworkTasks: [{
-        type: Schema.Types.ObjectId,
-        ref: 'HomeworkTask'
-      }],
-      emailTasks: [{
-        type: Schema.Types.ObjectId,
-        ref: 'EmailTask'
-      }],
-      meetingTasks: [{
-        type: Schema.Types.ObjectId,
-        ref: 'MeetingTask'
-      }],
-      projectTasks: [{
-        type: Schema.Types.ObjectId,
-        ref: 'ProjectTask'
-      }],
-      personalTasks: [{
-        type: Schema.Types.ObjectId,
-        ref: 'Task'
-      }],
-      workTasks: [{
-        type: Schema.Types.ObjectId,
-        ref: 'WorkTask'
-      }],
-      healthTasks: [{
-        type: Schema.Types.ObjectId,
-        ref: 'HealthTask'
-      }],
-      socialTasks: [{
-        type: Schema.Types.ObjectId,
-        ref: 'SocialTask'
-      }],
-      otherTasks: [{
-        type: Schema.Types.ObjectId,
-        ref: 'OtherTask'
-      }]
-    },
-
-    metrics: [
-      {
-        metricType: { type: String },
-        value: { type: Number },
-        unit: { type: String },
-        date: { type: Date, default: Date.now },
-        notes: { type: String },
-      },
-    ],
-
-    integrations: [
-      {
-        provider: { type: String },
-        connected: { type: Boolean, default: false },
-        lastSync: { type: Date },
-        tokens: { type: Object },
-      },
-    ],
-
-    calendarEvents: [
-      {
-        title: String,
-        start: Date,
-        end: Date,
-        description: String,
-        source: String,
-      },
-    ],
-
-    finances: {
-      income: { type: Number, default: 0 },
-      expenses: { type: Number, default: 0 },
-      savings: { type: Number, default: 0 },
-      goals: [{ type: String }],
-    },
-
-    agentMemory: {
-      lastConversation: String,
-      suggestions: [{ type: String }],
-      autoActions: [{ type: String }],
-    },
+    tasks: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Task'
+    }],
 
     // Authentication & Security
     isEmailVerified: {

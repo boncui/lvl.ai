@@ -1,9 +1,9 @@
-import { Router, Request, Response, NextFunction } from 'express';
-import { body, param, query } from 'express-validator';
-import Task from '@/models/Task';
+import { Router, Response, NextFunction } from 'express';
+import { body, param, query, validationResult } from 'express-validator';
+import Task, { TaskStatus } from '@/models/Task';
 import User from '@/models/User';
 import { CustomError } from '@/middleware/errorHandler';
-import authenticate from '../middleware/auth';
+import authenticate, { AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -12,28 +12,27 @@ const router = Router();
 // @access  Private
 router.get('/', authenticate, [
   query('status').optional().isIn(['pending', 'in_progress', 'completed', 'cancelled']).withMessage('Invalid status'),
-  query('type').optional().isString().withMessage('Type must be a string'),
   query('priority').optional().isIn(['low', 'medium', 'high', 'urgent']).withMessage('Invalid priority'),
   query('tag').optional().isString().withMessage('Tag must be a string'),
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
-  query('sortBy').optional().isIn(['createdAt', 'updatedAt', 'dueDate', 'priority']).withMessage('Invalid sort field'),
+  query('sortBy').optional().isIn(['createdAt', 'updatedAt', 'dueDate', 'taskTime', 'priority', 'points']).withMessage('Invalid sort field'),
   query('sortOrder').optional().isIn(['asc', 'desc']).withMessage('Sort order must be asc or desc')
-], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+], async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const userId = (req as any).user['id'];
-    const { status, type, priority, tag, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, errors: errors.array() });
+      return;
+    }
+
+    const userId = req.user!._id;
+    const { status, priority, tag, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
 
     // Build filter object
-    const filter: any = {
-      $or: [
-        { assignee: userId },
-        { collaborators: userId }
-      ]
-    };
+    const filter: any = { userId };
 
     if (status) filter.status = status;
-    if (type) filter.type = type;
     if (priority) filter.priority = priority;
     if (tag) filter.tags = tag;
 
@@ -44,11 +43,7 @@ router.get('/', authenticate, [
     const skip = (Number(page) - 1) * Number(limit);
 
     const tasks = await Task.find(filter)
-      .populate('assignee', 'name email avatar')
-      .populate('assignedBy', 'name email avatar')
-      .populate('collaborators', 'name email avatar')
-      .populate('parentTask', 'title')
-      .populate('subtasks', 'title status')
+      .populate('userId', 'name email avatar')
       .sort(sort)
       .skip(skip)
       .limit(Number(limit));
@@ -73,19 +68,22 @@ router.get('/', authenticate, [
 // @access  Private
 router.get('/stats', authenticate, [
   query('period').optional().isInt({ min: 1 }).withMessage('Period must be a positive integer')
-], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+], async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const userId = (req as any).user['id'];
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, errors: errors.array() });
+      return;
+    }
+
+    const userId = req.user!._id;
     const { period = 30 } = req.query;
     
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - Number(period));
 
     const filter = {
-      $or: [
-        { assignee: userId },
-        { collaborators: userId }
-      ],
+      userId,
       createdAt: { $gte: startDate }
     };
 
@@ -93,29 +91,27 @@ router.get('/stats', authenticate, [
     
     // Calculate statistics
     const totalTasks = tasks.length;
-    const byType: Record<string, number> = {};
     const byStatus: Record<string, number> = {};
     const byPriority: Record<string, number> = {};
-    let totalXP = 0;
+    let totalPoints = 0;
+    let earnedPoints = 0;
     let overdue = 0;
 
     tasks.forEach(task => {
-      // Count by type
-      byType[task.taskType] = (byType[task.taskType] || 0) + 1;
-      
       // Count by status
       byStatus[task.status] = (byStatus[task.status] || 0) + 1;
       
       // Count by priority
       byPriority[task.priority] = (byPriority[task.priority] || 0) + 1;
       
-      // Calculate XP
-      if (task.status === 'completed' && task.xpValue) {
-        totalXP += task.xpValue;
+      // Calculate points
+      totalPoints += task.points;
+      if (task.status === TaskStatus.COMPLETED) {
+        earnedPoints += task.points;
       }
       
       // Count overdue
-      if (task.dueDate && task.dueDate < new Date() && task.status !== 'completed') {
+      if (task.dueDate && task.dueDate < new Date() && task.status !== TaskStatus.COMPLETED) {
         overdue++;
       }
     });
@@ -124,10 +120,10 @@ router.get('/stats', authenticate, [
       success: true,
       data: {
         totalTasks,
-        byType,
         byStatus,
         byPriority,
-        totalXP,
+        totalPoints,
+        earnedPoints,
         overdue
       }
     });
@@ -142,35 +138,39 @@ router.get('/stats', authenticate, [
 router.post('/', authenticate, [
   body('title').notEmpty().withMessage('Title is required'),
   body('description').optional().isString().withMessage('Description must be a string'),
-  body('taskType').isIn(['food', 'homework', 'email', 'meeting', 'project', 'personal', 'work', 'health', 'social', 'other']).withMessage('Invalid task type'),
   body('priority').optional().isIn(['low', 'medium', 'high', 'urgent']).withMessage('Invalid priority'),
+  body('status').optional().isIn(['pending', 'in_progress', 'completed', 'cancelled']).withMessage('Invalid status'),
+  body('taskTime').optional().isISO8601().withMessage('Invalid task time format'),
   body('dueDate').optional().isISO8601().withMessage('Invalid due date format'),
-  body('estimatedDuration').optional().isInt({ min: 1 }).withMessage('Estimated duration must be a positive integer'),
-  body('tags').optional().isArray().withMessage('Tags must be an array'),
-  body('location').optional().isString().withMessage('Location must be a string'),
-  body('collaborators').optional().isArray().withMessage('Collaborators must be an array'),
-  body('assignedBy').optional().isMongoId().withMessage('Assigned by must be a valid user ID')
-], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  body('points').optional().isInt({ min: 0 }).withMessage('Points must be a non-negative integer'),
+  body('tags').optional().isArray().withMessage('Tags must be an array')
+], async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const userId = (req as any).user['id'];
-    const taskData = {
-      ...req.body,
-      assignee: userId,
-      assignedBy: req.body.assignedBy || userId
-    };
-
-    // If collaborators are specified, verify they exist
-    if (req.body.collaborators && req.body.collaborators.length > 0) {
-      const collaborators = await User.find({ _id: { $in: req.body.collaborators } });
-      if (collaborators.length !== req.body.collaborators.length) {
-        throw new CustomError('One or more collaborators not found', 400);
-      }
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, errors: errors.array() });
+      return;
     }
 
+    const userId = req.user!._id;
+    const taskData = {
+      ...req.body,
+      userId
+    };
+
     const task = await Task.create(taskData);
-    await task.populate('assignee', 'name email avatar');
-    await task.populate('assignedBy', 'name email avatar');
-    await task.populate('collaborators', 'name email avatar');
+    await task.populate('userId', 'name email avatar');
+
+    // Add task to user's tasks array
+    try {
+      await User.findByIdAndUpdate(userId, {
+        $push: { tasks: task._id }
+      });
+    } catch (userUpdateError: any) {
+      // If user update fails (e.g., tasks field is corrupted), log error but don't fail task creation
+      console.error('Error updating user tasks array:', userUpdateError.message);
+      // Task was still created successfully, so we can continue
+    }
 
     res.status(201).json({
       success: true,
@@ -186,24 +186,21 @@ router.post('/', authenticate, [
 // @access  Private
 router.get('/:id', authenticate, [
   param('id').isMongoId().withMessage('Please provide a valid task ID')
-], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+], async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const userId = (req as any).user['id'];
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, errors: errors.array() });
+      return;
+    }
+
+    const userId = req.user!._id;
     const taskId = req.params['id'];
 
     const task = await Task.findOne({
       _id: taskId,
-      $or: [
-        { assignee: userId },
-        { collaborators: userId }
-      ]
-    })
-    .populate('assignee', 'name email avatar')
-    .populate('assignedBy', 'name email avatar')
-    .populate('collaborators', 'name email avatar')
-    .populate('parentTask', 'title')
-    .populate('subtasks', 'title status')
-    .populate('notes.createdBy', 'name email avatar');
+      userId
+    }).populate('userId', 'name email avatar');
 
     if (!task) {
       throw new CustomError('Task not found', 404);
@@ -226,59 +223,54 @@ router.put('/:id', authenticate, [
   body('title').optional().notEmpty().withMessage('Title cannot be empty'),
   body('description').optional().isString().withMessage('Description must be a string'),
   body('priority').optional().isIn(['low', 'medium', 'high', 'urgent']).withMessage('Invalid priority'),
+  body('status').optional().isIn(['pending', 'in_progress', 'completed', 'cancelled']).withMessage('Invalid status'),
+  body('taskTime').optional().isISO8601().withMessage('Invalid task time format'),
   body('dueDate').optional().isISO8601().withMessage('Invalid due date format'),
-  body('estimatedDuration').optional().isInt({ min: 1 }).withMessage('Estimated duration must be a positive integer'),
-  body('tags').optional().isArray().withMessage('Tags must be an array'),
-  body('location').optional().isString().withMessage('Location must be a string'),
-  body('collaborators').optional().isArray().withMessage('Collaborators must be an array')
-], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  body('points').optional().isInt({ min: 0 }).withMessage('Points must be a non-negative integer'),
+  body('tags').optional().isArray().withMessage('Tags must be an array')
+], async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const userId = (req as any).user['id'];
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, errors: errors.array() });
+      return;
+    }
+
+    const userId = req.user!._id;
     const taskId = req.params['id'];
 
     const task = await Task.findOne({
       _id: taskId,
-      $or: [
-        { assignee: userId },
-        { collaborators: userId }
-      ]
+      userId
     });
 
     if (!task) {
       throw new CustomError('Task not found', 404);
     }
 
-    // Only assignee can update certain fields
-    const isAssignee = task.assignee.toString() === userId;
-    const updateData = { ...req.body };
+    // Check if status changed to completed
+    const wasCompleted = task.status === TaskStatus.COMPLETED;
+    const isNowCompleted = req.body.status === TaskStatus.COMPLETED;
 
-    if (!isAssignee) {
-      // Collaborators can only update limited fields
-      const allowedFields = ['notes', 'actualDuration'];
-      Object.keys(updateData).forEach(key => {
-        if (!allowedFields.includes(key)) {
-          delete updateData[key];
-        }
-      });
-    }
-
-    // If collaborators are being updated, verify they exist
-    if (updateData.collaborators && updateData.collaborators.length > 0) {
-      const collaborators = await User.find({ _id: { $in: updateData.collaborators } });
-      if (collaborators.length !== updateData.collaborators.length) {
-        throw new CustomError('One or more collaborators not found', 400);
-      }
+    const updateData: Record<string, unknown> = { ...req.body };
+    if (!wasCompleted && isNowCompleted) {
+      updateData['completedAt'] = new Date();
     }
 
     const updatedTask = await Task.findByIdAndUpdate(taskId, updateData, {
       new: true,
       runValidators: true
-    })
-    .populate('assignee', 'name email avatar')
-    .populate('assignedBy', 'name email avatar')
-    .populate('collaborators', 'name email avatar')
-    .populate('parentTask', 'title')
-    .populate('subtasks', 'title status');
+    }).populate('userId', 'name email avatar');
+
+    // Update user stats if task was just completed
+    if (!wasCompleted && isNowCompleted && updatedTask) {
+      await User.findByIdAndUpdate(userId, {
+        $inc: {
+          xp: updatedTask.points,
+          totalTasksCompleted: 1
+        }
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -294,26 +286,32 @@ router.put('/:id', authenticate, [
 // @access  Private
 router.delete('/:id', authenticate, [
   param('id').isMongoId().withMessage('Please provide a valid task ID')
-], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+], async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const userId = (req as any).user['id'];
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, errors: errors.array() });
+      return;
+    }
+
+    const userId = req.user!._id;
     const taskId = req.params['id'];
 
     const task = await Task.findOne({
       _id: taskId,
-      assignee: userId // Only assignee can delete
+      userId
     });
 
     if (!task) {
       throw new CustomError('Task not found', 404);
     }
 
-    // If this task has subtasks, delete them too
-    if (task.subtasks.length > 0) {
-      await Task.deleteMany({ _id: { $in: task.subtasks } });
-    }
-
     await task.deleteOne();
+
+    // Remove task from user's tasks array
+    await User.findByIdAndUpdate(userId, {
+      $pull: { tasks: taskId }
+    });
 
     res.status(200).json({
       success: true,
@@ -324,207 +322,28 @@ router.delete('/:id', authenticate, [
   }
 });
 
-// @route   POST /api/tasks/:id/notes
-// @desc    Add note to task
+// @route   GET /api/tasks/upcoming
+// @desc    Get upcoming tasks (sorted by taskTime or dueDate)
 // @access  Private
-router.post('/:id/notes', authenticate, [
-  param('id').isMongoId().withMessage('Please provide a valid task ID'),
-  body('content').notEmpty().withMessage('Note content is required')
-], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/filter/upcoming', authenticate, async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const userId = (req as any).user['id'];
-    const taskId = req.params['id'];
-    const { content } = req.body;
-
-    const task = await Task.findOne({
-      _id: taskId,
-      $or: [
-        { assignee: userId },
-        { collaborators: userId }
-      ]
-    });
-
-    if (!task) {
-      throw new CustomError('Task not found', 404);
-    }
-
-    // Add note directly to the notes array
-    task.notes.push({
-      content,
-      createdBy: userId,
-      createdAt: new Date()
-    });
-    await task.save();
-    await task.populate('notes.createdBy', 'name email avatar');
-
-    res.status(200).json({
-      success: true,
-      data: task.notes
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// @route   POST /api/tasks/:id/reminders
-// @desc    Add reminder to task
-// @access  Private
-router.post('/:id/reminders', authenticate, [
-  param('id').isMongoId().withMessage('Please provide a valid task ID'),
-  body('date').isISO8601().withMessage('Invalid reminder date format'),
-  body('message').notEmpty().withMessage('Reminder message is required')
-], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const userId = (req as any).user['id'];
-    const taskId = req.params['id'];
-    const { date, message } = req.body;
-
-    const task = await Task.findOne({
-      _id: taskId,
-      assignee: userId // Only assignee can add reminders
-    });
-
-    if (!task) {
-      throw new CustomError('Task not found', 404);
-    }
-
-    // Add reminder directly to the reminders array
-    task.reminders.push({
-      date: new Date(date),
-      message,
-      isSent: false
-    });
-    await task.save();
-
-    res.status(200).json({
-      success: true,
-      data: task.reminders
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// @route   POST /api/tasks/:id/collaborators
-// @desc    Add collaborator to task
-// @access  Private
-router.post('/:id/collaborators', authenticate, [
-  param('id').isMongoId().withMessage('Please provide a valid task ID'),
-  body('collaboratorId').isMongoId().withMessage('Please provide a valid collaborator ID')
-], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const userId = (req as any).user['id'];
-    const taskId = req.params['id'];
-    const { collaboratorId } = req.body;
-
-    const task = await Task.findOne({
-      _id: taskId,
-      assignee: userId // Only assignee can add collaborators
-    });
-
-    if (!task) {
-      throw new CustomError('Task not found', 404);
-    }
-
-    // Check if collaborator exists
-    const collaborator = await User.findById(collaboratorId);
-    if (!collaborator) {
-      throw new CustomError('User not found', 404);
-    }
-
-    // Add collaborator directly to the collaborators array
-    if (!task.collaborators.includes(collaboratorId)) {
-      task.collaborators.push(collaboratorId);
-      await task.save();
-    }
-    await task.populate('collaborators', 'name email avatar');
-
-    res.status(200).json({
-      success: true,
-      data: task.collaborators
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// @route   DELETE /api/tasks/:id/collaborators/:collaboratorId
-// @desc    Remove collaborator from task
-// @access  Private
-router.delete('/:id/collaborators/:collaboratorId', authenticate, [
-  param('id').isMongoId().withMessage('Please provide a valid task ID'),
-  param('collaboratorId').isMongoId().withMessage('Please provide a valid collaborator ID')
-], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const userId = (req as any).user['id'];
-    const taskId = req.params['id'];
-    const collaboratorId = req.params['collaboratorId'];
-
-    const task = await Task.findOne({
-      _id: taskId,
-      assignee: userId // Only assignee can remove collaborators
-    });
-
-    if (!task) {
-      throw new CustomError('Task not found', 404);
-    }
-
-    // Remove collaborator directly from the collaborators array
-    task.collaborators = task.collaborators.filter(id => id.toString() !== collaboratorId);
-    await task.save();
-    await task.populate('collaborators', 'name email avatar');
-
-    res.status(200).json({
-      success: true,
-      data: task.collaborators
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// @route   GET /api/tasks/type/:type
-// @desc    Get tasks by type
-// @access  Private
-router.get('/type/:type', authenticate, [
-  param('type').isIn(['food', 'homework', 'email', 'meeting', 'project', 'personal', 'work', 'health', 'social', 'other']).withMessage('Invalid task type'),
-  query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
-  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100')
-], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const userId = (req as any).user['id'];
-    const { type } = req.params;
-    const { page = 1, limit = 10 } = req.query;
-
-    const skip = (Number(page) - 1) * Number(limit);
+    const userId = req.user!._id;
 
     const tasks = await Task.find({
-      taskType: type,
+      userId,
+      status: { $ne: TaskStatus.COMPLETED },
       $or: [
-        { assignee: userId },
-        { collaborators: userId }
+        { taskTime: { $gte: new Date() } },
+        { dueDate: { $gte: new Date() } }
       ]
     })
-    .populate('assignee', 'name email avatar')
-    .populate('collaborators', 'name email avatar')
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(Number(limit));
-
-    const total = await Task.countDocuments({
-      taskType: type,
-      $or: [
-        { assignee: userId },
-        { collaborators: userId }
-      ]
-    });
+    .populate('userId', 'name email avatar')
+    .sort({ taskTime: 1, dueDate: 1 })
+    .limit(20);
 
     res.status(200).json({
       success: true,
       count: tasks.length,
-      total,
-      page: Number(page),
-      pages: Math.ceil(total / Number(limit)),
       data: tasks
     });
   } catch (error) {
@@ -535,26 +354,75 @@ router.get('/type/:type', authenticate, [
 // @route   GET /api/tasks/overdue
 // @desc    Get overdue tasks
 // @access  Private
-router.get('/overdue', authenticate, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+router.get('/filter/overdue', authenticate, async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const userId = (req as any).user['id'];
+    const userId = req.user!._id;
 
     const tasks = await Task.find({
-      $or: [
-        { assignee: userId },
-        { collaborators: userId }
-      ],
+      userId,
       dueDate: { $lt: new Date() },
-      status: { $ne: 'completed' }
+      status: { $ne: TaskStatus.COMPLETED }
     })
-    .populate('assignee', 'name email avatar')
-    .populate('collaborators', 'name email avatar')
+    .populate('userId', 'name email avatar')
     .sort({ dueDate: 1 });
 
     res.status(200).json({
       success: true,
       count: tasks.length,
       data: tasks
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @route   POST /api/tasks/:id/complete
+// @desc    Mark task as complete
+// @access  Private
+router.post('/:id/complete', authenticate, [
+  param('id').isMongoId().withMessage('Please provide a valid task ID')
+], async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, errors: errors.array() });
+      return;
+    }
+
+    const userId = req.user!._id;
+    const taskId = req.params['id'];
+
+    const task = await Task.findOne({
+      _id: taskId,
+      userId
+    });
+
+    if (!task) {
+      throw new CustomError('Task not found', 404);
+    }
+
+    if (task.status === TaskStatus.COMPLETED) {
+      throw new CustomError('Task is already completed', 400);
+    }
+
+    task.status = TaskStatus.COMPLETED;
+    task.completedAt = new Date();
+    await task.save();
+
+    // Update user stats
+    await User.findByIdAndUpdate(userId, {
+      $inc: {
+        xp: task.points,
+        totalTasksCompleted: 1
+      }
+    });
+
+    await task.populate('userId', 'name email avatar');
+
+    res.status(200).json({
+      success: true,
+      data: task,
+      message: `Task completed! You earned ${task.points} points.`
     });
   } catch (error) {
     next(error);

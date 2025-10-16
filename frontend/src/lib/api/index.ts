@@ -4,102 +4,67 @@ export { default as apiClient } from './client';
 // User API
 export { UserAPI } from './users';
 
-// Task APIs
-export { default as TasksAPI } from './tasks';
-export { default as FoodTasksAPI } from './foodTasks';
-export { default as HomeworkTasksAPI } from './homeworkTasks';
-export { default as EmailTasksAPI } from './emailTasks';
-export { default as MeetingTasksAPI } from './meetingTasks';
-export { default as ProjectTasksAPI } from './projectTasks';
-export { default as WorkTasksAPI } from './workTasks';
-export { default as HealthTasksAPI } from './healthTasks';
+// Task API - Aligned with backend routes
+export { default as TaskAPI } from './task';
+export * as TaskService from './task';
 
 // Friends API
 export { default as FriendsAPI } from './friends';
 
-// Hooks
-export { useCurrentUserAPI, useAdminUserAPI } from '../../hooks/useUserAPI';
-export {
-  useTasksAPI,
-  useFoodTasksAPI,
-  useHomeworkTasksAPI,
-  useEmailTasksAPI,
-  useMeetingTasksAPI,
-  useProjectTasksAPI,
-  useWorkTasksAPI,
-  useHealthTasksAPI,
-  useFriendsAPI,
-  useAllTaskAPIs,
-} from '../../hooks/useTaskAPIs';
+// AI Agents API
+export { default as organizerAgentAPI } from './agents/organizerAgent';
+export * as OrganizerAgent from './agents/organizerAgent';
 
 // Re-export types for convenience
 export type {
-  ApiResponse,
-  PaginatedResponse,
+  // Task types from lib/types
+  ITask,
+  Task,
+  CreateTaskDTO,
+  UpdateTaskDTO,
+  TaskPriority,
+  TaskStatus,
+  // User types
+  IUser,
   User,
-  BaseTask,
-  Metric,
-  LevelProgress,
-  UserProfileFormData,
-  LoginFormData,
-  RegisterFormData,
-  TaskFormData,
+  RegisterUserDTO,
+  LoginUserDTO,
+  UpdateUserDTO,
+  UpdatePasswordDTO,
+  UserResponse,
+  AuthResponse,
+  UserPreferences,
   FriendRequests,
 } from '../types';
 
-// Re-export task-specific types
+// Re-export Task API types
 export type {
-  FoodTask,
-  FoodTaskStats,
-  IngredientSearchResult,
-  NutritionalDensity,
-} from './foodTasks';
+  TaskFilters,
+  TasksResponse,
+  TaskResponse,
+  TaskStatsResponse,
+  TaskCompleteResponse,
+  TaskDeleteResponse,
+} from './task';
 
+// Re-export Common types
 export type {
-  HomeworkTask,
-  HomeworkTaskStats,
-  StudyEfficiency,
-  SubjectSearchResult,
-} from './homeworkTasks';
+  ApiResponse,
+  PaginatedResponse,
+} from '../types/Common';
 
+// Re-export Organizer Agent types
 export type {
-  EmailTask,
-  EmailTaskStats,
-  EmailStatus,
-  RecipientSearchResult,
-} from './emailTasks';
-
-export type {
-  MeetingTask,
-  MeetingTaskStats,
-  MeetingEfficiency,
-  AttendeeSearchResult,
-} from './meetingTasks';
-
-export type {
-  ProjectTask,
-  ProjectTaskStats,
-  ProjectProgress,
-  ProjectSearchResult,
-} from './projectTasks';
-
-export type {
-  WorkTask,
-  WorkTaskStats,
-} from './workTasks';
-
-export type {
-  PersonalTask,
-  HealthTask,
-  SocialTask,
-  OtherTask,
-  TaskStats,
-  PersonalTaskStats,
-  MoodTrackingData,
-  CategorySearchResult,
-} from './tasks';
-
-export type {
-  HealthTask as HealthTaskType,
-  HealthTaskStats,
-} from './healthTasks';
+  AIProvider,
+  ChatRequest,
+  ChatResponse,
+  OrganizationSuggestionsResponse,
+  DailyPlanResponse,
+  ProductivityAnalysisResponse,
+  MotivationResponse,
+  UserContext as OrganizerUserContext,
+  TaskContext as OrganizerTaskContext,
+  ContextResponse,
+  ProviderTestResult,
+  HealthCheckResponse,
+} from './agents/organizerAgent';

@@ -7,7 +7,7 @@ import { TrophyIcon } from '@heroicons/react/24/outline';
 
 export default function WebNavbar() {
   return (
-    <nav className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-50">
+    <nav className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-50 sticky-element">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-2">

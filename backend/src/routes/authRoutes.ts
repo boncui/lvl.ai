@@ -16,7 +16,8 @@ const generateToken = (id: string): string => {
   if (!secret) {
     throw new Error('JWT_ACCESS_TOKEN_SECRET is not defined');
   }
-  return jwt.sign({ id }, secret, {
+  // ✅ Match the middleware's expected payload structure
+  return jwt.sign({ userId: id, type: 'access' }, secret, {
     expiresIn: env.JWT_EXPIRE
   } as jwt.SignOptions);
 };
@@ -133,16 +134,29 @@ router.post('/logout', authenticate, async (_req: Request, res: Response, next: 
 // @access  Private
 router.get('/me', authenticate, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const user = await User.findById((req as any).user['id']);
+    // The authenticate middleware already loaded and validated the user
+    // It's available at req.user from the AuthenticatedRequest interface
+    const authenticatedReq = req as any;
+    const userId = authenticatedReq.user?._id || authenticatedReq.user?.id;
+    
+    if (!userId) {
+      throw new CustomError('User not found', 404);
+    }
+
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      throw new CustomError('User not found', 404);
+    }
 
     res.status(200).json({
       success: true,
       user: {
-        id: user?._id,
-        name: user?.name,
-        email: user?.email,
-        avatar: user?.avatar,
-        isEmailVerified: user?.isEmailVerified
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        isEmailVerified: user.isEmailVerified
       }
     });
   } catch (error) {

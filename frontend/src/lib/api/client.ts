@@ -18,8 +18,9 @@ class ApiClient {
 
   constructor() {
     this.client = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
+      baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api',
       timeout: 10000,
+      withCredentials: true,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -43,10 +44,8 @@ class ApiClient {
         if (error.response?.status === 401) {
           // Token expired or invalid, clear it
           this.clearToken();
-          // Redirect to login if not already there
-          if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-            window.location.href = '/login';
-          }
+          // Don't redirect here - let AuthContext and ClientGuard handle it
+          // This prevents the cascade of redirects
         }
         return Promise.reject(error);
       }
@@ -78,8 +77,11 @@ class ApiClient {
     if (response.data.success) {
       this.setToken(response.data.token);
       return {
-        token: response.data.token,
-        user: response.data.user
+        success: true,
+        data: {
+          token: response.data.token,
+          user: response.data.user
+        }
       };
     }
     throw new Error('Login failed');
@@ -90,8 +92,11 @@ class ApiClient {
     if (response.data.success) {
       this.setToken(response.data.token);
       return {
-        token: response.data.token,
-        user: response.data.user
+        success: true,
+        data: {
+          token: response.data.token,
+          user: response.data.user
+        }
       };
     }
     throw new Error('Registration failed');
@@ -233,11 +238,13 @@ class ApiClient {
     if (response.data.success) {
       return {
         success: true,
-        count: response.data.count,
-        total: response.data.total,
-        page: response.data.page,
-        pages: response.data.pages,
-        data: response.data.data
+        data: response.data.data,
+        pagination: {
+          page: response.data.page,
+          limit: limit,
+          total: response.data.total,
+          totalPages: response.data.pages
+        }
       };
     }
     throw new Error('Failed to fetch tasks');
@@ -336,11 +343,13 @@ class ApiClient {
     if (response.data.success) {
       return {
         success: true,
-        count: response.data.count,
-        total: response.data.total,
-        page: response.data.page,
-        pages: response.data.pages,
-        data: response.data.data
+        data: response.data.data,
+        pagination: {
+          page: response.data.page,
+          limit: limit,
+          total: response.data.total,
+          totalPages: response.data.pages
+        }
       };
     }
     throw new Error('Failed to fetch tasks by type');

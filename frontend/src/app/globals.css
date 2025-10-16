@@ -99,3 +99,40 @@ body {
 * {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
+
+/* Improve scroll behavior with sticky elements */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 80px; /* Account for sticky header */
+}
+
+/* Account for sticky header when scrolling to elements */
+* {
+  scroll-margin-top: 80px;
+}
+
+/* Optimize sticky elements for better performance */
+.sticky-top,
+.sticky-element {
+  contain: layout style paint;
+  will-change: transform;
+  scroll-margin-top: 0 !important;
+}
+
+/* Prevent scroll conflicts with fixed positioned elements */
+.fixed-element {
+  contain: layout style paint;
+  will-change: transform;
+  scroll-margin-top: 0 !important;
+}
+
+/* Prevent focus scroll on sticky/fixed elements themselves */
+[class*="sticky"],
+[class*="fixed"] {
+  scroll-margin-top: 0 !important;
+}
+
+/* Override for elements that should not have smooth scrolling */
+.no-smooth-scroll {
+  scroll-behavior: auto;
+}

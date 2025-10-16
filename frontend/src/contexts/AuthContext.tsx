@@ -58,20 +58,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const doRefresh = useCallback(async (): Promise<boolean> => {
     try {
       // Check if we have a token to refresh
-      if (!apiClient.isAuthenticated()) {
+      const token = apiClient.getToken();
+      if (!token || !apiClient.isAuthenticated()) {
+        // No token available, clear everything
+        setSessionFlag(false);
+        apiClient.clearToken();
         return false;
       }
 
       // Try to get current user to validate token
-      const currentUser = await apiClient.getCurrentUser();
-      if (mountedRef.current) {
-        setUser(currentUser);
-        setAccessToken(apiClient.getToken());
+      // Use fetch to avoid interceptor loops
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api'}/auth/me`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        // Token is invalid, clear everything
+        setSessionFlag(false);
+        apiClient.clearToken();
+        if (mountedRef.current) {
+          setUser(null);
+          setAccessToken(null);
+        }
+        return false;
+      }
+
+      const data = await response.json();
+      if (data.success && data.user && mountedRef.current) {
+        setUser(data.user);
+        setAccessToken(token);
+        setSessionFlag(true); // Ensure flag is set
         return true;
+      }
+      
+      // Invalid response, clear everything
+      setSessionFlag(false);
+      apiClient.clearToken();
+      if (mountedRef.current) {
+        setUser(null);
+        setAccessToken(null);
       }
       return false;
     } catch (error) {
       console.error('Token refresh failed:', error);
+      // On error, clear everything to ensure clean state
+      setSessionFlag(false);
+      apiClient.clearToken();
+      if (mountedRef.current) {
+        setUser(null);
+        setAccessToken(null);
+      }
       return false;
     } finally {
       refreshPromiseRef.current = null;
@@ -138,22 +178,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      try {
-        // Try to refresh session silently
-        const ok = await doRefresh();
-        if (!ok) {
-          setSessionFlag(false);
-          setUser(null);
-          setAccessToken(null);
-          apiClient.clearToken();
-          return;
-        }
-      } catch {
-        // If refresh fails, clear session
+      // Check if we actually have a token stored
+      const storedToken = apiClient.getToken();
+      if (!storedToken) {
+        // Session flag exists but no token - clear stale flag
         setSessionFlag(false);
         setUser(null);
         setAccessToken(null);
         apiClient.clearToken();
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Try to refresh session silently
+        const ok = await doRefresh();
+        if (!ok) {
+          // doRefresh already cleared everything, just update state
+          if (mountedRef.current) {
+            setUser(null);
+            setAccessToken(null);
+          }
+        }
+      } catch (error) {
+        // If refresh fails, clear session (doRefresh already handles this)
+        console.debug('Init refresh failed:', error);
+        if (mountedRef.current) {
+          setUser(null);
+          setAccessToken(null);
+        }
       } finally {
         if (mountedRef.current) setLoading(false);
       }
@@ -175,9 +228,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async (email: string, password: string, nextUrl?: string) => {
       try {
         const response = await apiClient.login({ email, password });
+        // apiClient.login already sets the token internally, just sync our state
+        const token = response.data.token;
+        const userData = response.data.user as User;
+        
         setSessionFlag(true);
-        setUser(response.user);
-        setAccessToken(response.token);
+        setUser(userData);
+        setAccessToken(token);
         bcRef.current?.postMessage({ type: 'login' });
 
         // caller decides where to go; fallback to home
@@ -244,9 +301,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   /* ------------------------------ LOGOUT ------------------------------ */
   const logout = useCallback(async () => {
     try {
-      if (user) await apiClient.logout();
+      // Only call logout API if we have a valid token
+      if (user && apiClient.isAuthenticated()) {
+        await apiClient.logout();
+      }
     } catch (err) {
-      console.error('Logout error:', err);
+      // Ignore logout API errors - we're logging out anyway
+      console.debug('Logout API call failed (expected if session expired):', err);
     } finally {
       setUser(null);
       setAccessToken(null);
@@ -286,18 +347,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           error.response?.status === 401 &&
           !originalRequest._retry &&
           !url.includes('/auth/refresh') &&
+          !url.includes('/auth/me') && // Don't retry /auth/me to avoid loops
           // Do NOT attempt refresh on explicit login failures
           !url.includes('/auth/login') &&
           !url.includes('/auth/register')
         ) {
           originalRequest._retry = true;
+          
+          // Try to refresh session
           if (!refreshPromiseRef.current) {
             refreshPromiseRef.current = doRefresh();
           }
-          const ok = await refreshPromiseRef.current;
-          if (ok) {
-            return apiClient.client(originalRequest);
+          
+          try {
+            const ok = await refreshPromiseRef.current;
+            if (ok) {
+              // Refresh succeeded, retry original request
+              return apiClient.client(originalRequest);
+            }
+          } catch (err) {
+            console.debug('Refresh failed during interceptor', err);
           }
+          
+          // Refresh failed - logout and redirect
           await logout();
           return Promise.reject(new Error('Session expired'));
         }

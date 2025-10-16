@@ -3,29 +3,48 @@ import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { env } from "../config/env";
 
-// Validate environment variable
-if (!env.DEEPSEEK_API_KEY) {
-  throw new Error("DEEPSEEK_API_KEY environment variable is required");
+// Lazy initialization - only create client when needed
+let deepSeek: ChatOpenAI | null = null;
+let prompt: ChatPromptTemplate | null = null;
+
+/**
+ * Get or create the DeepSeek client instance
+ */
+function getDeepSeekClient(): ChatOpenAI {
+  // Validate on first use
+  if (!env.DEEPSEEK_API_KEY) {
+    throw new Error("DEEPSEEK_API_KEY environment variable is required to use LangChain provider");
+  }
+
+  if (!deepSeek) {
+    deepSeek = new ChatOpenAI({
+      model: "deepseek-chat", // DeepSeek's most powerful model
+      apiKey: env.DEEPSEEK_API_KEY,
+      configuration: {
+        baseURL: "https://api.deepseek.com",
+      },
+      timeout: 30000, // 30 second timeout
+      maxRetries: 2, // Retry failed requests up to 2 times
+      temperature: 0.7, // Default temperature for natural responses
+    });
+  }
+
+  return deepSeek;
 }
 
-const deepSeek = new ChatOpenAI({
-  model: "deepseek-chat", // DeepSeek's most powerful model
-  apiKey: env.DEEPSEEK_API_KEY,
-  configuration: {
-    baseURL: "https://api.deepseek.com",
-  },
-  timeout: 30000, // 30 second timeout
-  maxRetries: 2, // Retry failed requests up to 2 times
-  temperature: 0.7, // Default temperature for natural responses
-});
-
-// Prompt template: system + user
-const prompt = ChatPromptTemplate.fromMessages([
-  ["system", "{systemPrompt}"],
-  ["user", "{userMessage}"],
-]);
-
-// Chain is now created dynamically in askLVLBot function
+/**
+ * Get or create the prompt template
+ */
+function getPromptTemplate(): ChatPromptTemplate {
+  if (!prompt) {
+    prompt = ChatPromptTemplate.fromMessages([
+      ["system", "{systemPrompt}"],
+      ["user", "{userMessage}"],
+    ]);
+  }
+  
+  return prompt;
+}
 
 export async function askLVLBot(systemPrompt: string, userMessage: string, options?: { temperature?: number }): Promise<string> {
   try {
@@ -33,7 +52,7 @@ export async function askLVLBot(systemPrompt: string, userMessage: string, optio
       throw new Error("Both systemPrompt and userMessage are required");
     }
 
-    // Create a new instance with custom temperature if provided
+    // Create a new instance with custom temperature if provided, or use the cached instance
     const model = options?.temperature !== undefined 
       ? new ChatOpenAI({
           model: "deepseek-chat",
@@ -45,9 +64,10 @@ export async function askLVLBot(systemPrompt: string, userMessage: string, optio
           maxRetries: 2,
           temperature: options.temperature,
         })
-      : deepSeek;
+      : getDeepSeekClient();
 
-    const customChain = prompt.pipe(model).pipe(new StringOutputParser());
+    const promptTemplate = getPromptTemplate();
+    const customChain = promptTemplate.pipe(model).pipe(new StringOutputParser());
     const response = await customChain.invoke({ systemPrompt, userMessage });
     
     if (!response || typeof response !== 'string') {
