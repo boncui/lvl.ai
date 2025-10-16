@@ -12,6 +12,7 @@ export { default as EmailTasksAPI } from './emailTasks';
 export { default as MeetingTasksAPI } from './meetingTasks';
 export { default as ProjectTasksAPI } from './projectTasks';
 export { default as WorkTasksAPI } from './workTasks';
+export { default as HealthTasksAPI } from './healthTasks';
 
 // Friends API
 export { default as FriendsAPI } from './friends';
@@ -26,6 +27,7 @@ export {
   useMeetingTasksAPI,
   useProjectTasksAPI,
   useWorkTasksAPI,
+  useHealthTasksAPI,
   useFriendsAPI,
   useAllTaskAPIs,
 } from '../../hooks/useTaskAPIs';
@@ -96,3 +98,8 @@ export type {
   MoodTrackingData,
   CategorySearchResult,
 } from './tasks';
+
+export type {
+  HealthTask as HealthTaskType,
+  HealthTaskStats,
+} from './healthTasks';

@@ -1,0 +1,2 @@
+export { CategoryBanner } from './CategoryBanner';
+

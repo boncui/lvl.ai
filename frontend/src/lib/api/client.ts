@@ -18,7 +18,7 @@ class ApiClient {
 
   constructor() {
     this.client = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+      baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api',
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',
@@ -74,21 +74,27 @@ class ApiClient {
 
   // Auth endpoints
   async login(credentials: LoginRequest): Promise<AuthResponse> {
-    const response: AxiosResponse<ApiResponse<AuthResponse>> = await this.client.post('/auth/login', credentials);
-    if (response.data.success && response.data.data) {
-      this.setToken(response.data.data.token);
-      return response.data.data;
+    const response: AxiosResponse<{ success: boolean; token: string; user: User }> = await this.client.post('/auth/login', credentials);
+    if (response.data.success) {
+      this.setToken(response.data.token);
+      return {
+        token: response.data.token,
+        user: response.data.user
+      };
     }
-    throw new Error(response.data.message || 'Login failed');
+    throw new Error('Login failed');
   }
 
   async register(userData: RegisterRequest): Promise<AuthResponse> {
-    const response: AxiosResponse<ApiResponse<AuthResponse>> = await this.client.post('/auth/register', userData);
-    if (response.data.success && response.data.data) {
-      this.setToken(response.data.data.token);
-      return response.data.data;
+    const response: AxiosResponse<{ success: boolean; token: string; user: User }> = await this.client.post('/auth/register', userData);
+    if (response.data.success) {
+      this.setToken(response.data.token);
+      return {
+        token: response.data.token,
+        user: response.data.user
+      };
     }
-    throw new Error(response.data.message || 'Registration failed');
+    throw new Error('Registration failed');
   }
 
   async logout(): Promise<void> {
@@ -100,11 +106,67 @@ class ApiClient {
   }
 
   async getCurrentUser(): Promise<User> {
-    const response: AxiosResponse<ApiResponse<User>> = await this.client.get('/auth/me');
-    if (response.data.success && response.data.data) {
-      return response.data.data;
+    const response: AxiosResponse<{ success: boolean; user: User }> = await this.client.get('/auth/me');
+    if (response.data.success) {
+      return response.data.user;
     }
-    throw new Error(response.data.message || 'Failed to get user data');
+    throw new Error('Failed to get user data');
+  }
+
+  async updateProfile(profileData: { name?: string; email?: string }): Promise<User> {
+    const response: AxiosResponse<{ success: boolean; user: User }> = await this.client.put('/auth/profile', profileData);
+    if (response.data.success) {
+      return response.data.user;
+    }
+    throw new Error('Failed to update profile');
+  }
+
+  async updatePassword(passwordData: { currentPassword: string; newPassword: string }): Promise<{ token: string; message: string }> {
+    const response: AxiosResponse<{ success: boolean; token: string; message: string }> = await this.client.put('/auth/password', passwordData);
+    if (response.data.success) {
+      this.setToken(response.data.token);
+      return {
+        token: response.data.token,
+        message: response.data.message
+      };
+    }
+    throw new Error('Failed to update password');
+  }
+
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const response: AxiosResponse<{ success: boolean; message: string }> = await this.client.post('/auth/forgot-password', { email });
+    if (response.data.success) {
+      return { message: response.data.message };
+    }
+    throw new Error('Failed to send password reset email');
+  }
+
+  async resetPassword(token: string, password: string): Promise<{ token: string; message: string }> {
+    const response: AxiosResponse<{ success: boolean; token: string; message: string }> = await this.client.put(`/auth/reset-password/${token}`, { password });
+    if (response.data.success) {
+      this.setToken(response.data.token);
+      return {
+        token: response.data.token,
+        message: response.data.message
+      };
+    }
+    throw new Error('Failed to reset password');
+  }
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    const response: AxiosResponse<{ success: boolean; message: string }> = await this.client.get(`/auth/verify-email/${token}`);
+    if (response.data.success) {
+      return { message: response.data.message };
+    }
+    throw new Error('Failed to verify email');
+  }
+
+  async resendVerificationEmail(email: string): Promise<{ message: string }> {
+    const response: AxiosResponse<{ success: boolean; message: string }> = await this.client.post('/auth/resend-verification', { email });
+    if (response.data.success) {
+      return { message: response.data.message };
+    }
+    throw new Error('Failed to resend verification email');
   }
 
   getToken(): string | null {
@@ -152,13 +214,8 @@ class ApiClient {
     if (filters) {
       if (filters.status) params.append('status', filters.status.join(','));
       if (filters.priority) params.append('priority', filters.priority.join(','));
-      if (filters.taskType) params.append('taskType', filters.taskType.join(','));
-      if (filters.tags) params.append('tags', filters.tags.join(','));
-      if (filters.search) params.append('search', filters.search);
-      if (filters.dateRange) {
-        params.append('startDate', filters.dateRange.start.toISOString());
-        params.append('endDate', filters.dateRange.end.toISOString());
-      }
+      if (filters.taskType) params.append('type', filters.taskType.join(','));
+      if (filters.tags) params.append('tag', filters.tags.join(','));
     }
     
     if (sort) {
@@ -169,123 +226,262 @@ class ApiClient {
     params.append('page', page.toString());
     params.append('limit', limit.toString());
 
-    const response: AxiosResponse<PaginatedResponse<BaseTask>> = await this.client.get(
+    const response: AxiosResponse<{ success: boolean; count: number; total: number; page: number; pages: number; data: BaseTask[] }> = await this.client.get(
       `/tasks?${params.toString()}`
     );
     
     if (response.data.success) {
-      return response.data;
+      return {
+        success: true,
+        count: response.data.count,
+        total: response.data.total,
+        page: response.data.page,
+        pages: response.data.pages,
+        data: response.data.data
+      };
     }
-    throw new Error(response.data.message || 'Failed to fetch tasks');
+    throw new Error('Failed to fetch tasks');
+  }
+
+  async getTaskStats(period?: number): Promise<{
+    totalTasks: number;
+    byType: Record<string, number>;
+    byStatus: Record<string, number>;
+    byPriority: Record<string, number>;
+    totalXP: number;
+    overdue: number;
+  }> {
+    const params = new URLSearchParams();
+    if (period) params.append('period', period.toString());
+
+    const response: AxiosResponse<{ success: boolean; data: any }> = await this.client.get(`/tasks/stats?${params.toString()}`);
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error('Failed to fetch task stats');
   }
 
   async getTask(taskId: string): Promise<BaseTask> {
-    const response: AxiosResponse<ApiResponse<BaseTask>> = await this.client.get(`/tasks/${taskId}`);
-    if (response.data.success && response.data.data) {
+    const response: AxiosResponse<{ success: boolean; data: BaseTask }> = await this.client.get(`/tasks/${taskId}`);
+    if (response.data.success) {
       return response.data.data;
     }
-    throw new Error(response.data.message || 'Failed to fetch task');
+    throw new Error('Failed to fetch task');
   }
 
   async createTask(taskData: TaskFormData): Promise<BaseTask> {
-    const response: AxiosResponse<ApiResponse<BaseTask>> = await this.client.post('/tasks', taskData);
-    if (response.data.success && response.data.data) {
+    const response: AxiosResponse<{ success: boolean; data: BaseTask }> = await this.client.post('/tasks', taskData);
+    if (response.data.success) {
       return response.data.data;
     }
-    throw new Error(response.data.message || 'Failed to create task');
+    throw new Error('Failed to create task');
   }
 
   async updateTask(taskId: string, taskData: Partial<TaskFormData>): Promise<BaseTask> {
-    const response: AxiosResponse<ApiResponse<BaseTask>> = await this.client.put(`/tasks/${taskId}`, taskData);
-    if (response.data.success && response.data.data) {
+    const response: AxiosResponse<{ success: boolean; data: BaseTask }> = await this.client.put(`/tasks/${taskId}`, taskData);
+    if (response.data.success) {
       return response.data.data;
     }
-    throw new Error(response.data.message || 'Failed to update task');
+    throw new Error('Failed to update task');
   }
 
   async deleteTask(taskId: string): Promise<void> {
-    const response: AxiosResponse<ApiResponse> = await this.client.delete(`/tasks/${taskId}`);
+    const response: AxiosResponse<{ success: boolean; message: string }> = await this.client.delete(`/tasks/${taskId}`);
     if (!response.data.success) {
-      throw new Error(response.data.message || 'Failed to delete task');
+      throw new Error('Failed to delete task');
     }
   }
 
-  async completeTask(taskId: string): Promise<BaseTask> {
-    const response: AxiosResponse<ApiResponse<BaseTask>> = await this.client.patch(`/tasks/${taskId}/complete`);
-    if (response.data.success && response.data.data) {
+  async addTaskNote(taskId: string, content: string): Promise<any[]> {
+    const response: AxiosResponse<{ success: boolean; data: any[] }> = await this.client.post(`/tasks/${taskId}/notes`, { content });
+    if (response.data.success) {
       return response.data.data;
     }
-    throw new Error(response.data.message || 'Failed to complete task');
+    throw new Error('Failed to add note');
+  }
+
+  async addTaskReminder(taskId: string, date: string, message: string): Promise<any[]> {
+    const response: AxiosResponse<{ success: boolean; data: any[] }> = await this.client.post(`/tasks/${taskId}/reminders`, { date, message });
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error('Failed to add reminder');
+  }
+
+  async addTaskCollaborator(taskId: string, collaboratorId: string): Promise<any[]> {
+    const response: AxiosResponse<{ success: boolean; data: any[] }> = await this.client.post(`/tasks/${taskId}/collaborators`, { collaboratorId });
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error('Failed to add collaborator');
+  }
+
+  async removeTaskCollaborator(taskId: string, collaboratorId: string): Promise<any[]> {
+    const response: AxiosResponse<{ success: boolean; data: any[] }> = await this.client.delete(`/tasks/${taskId}/collaborators/${collaboratorId}`);
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error('Failed to remove collaborator');
+  }
+
+  async getTasksByType(type: string, page: number = 1, limit: number = 10): Promise<PaginatedResponse<BaseTask>> {
+    const params = new URLSearchParams();
+    params.append('page', page.toString());
+    params.append('limit', limit.toString());
+
+    const response: AxiosResponse<{ success: boolean; count: number; total: number; page: number; pages: number; data: BaseTask[] }> = await this.client.get(
+      `/tasks/type/${type}?${params.toString()}`
+    );
+    
+    if (response.data.success) {
+      return {
+        success: true,
+        count: response.data.count,
+        total: response.data.total,
+        page: response.data.page,
+        pages: response.data.pages,
+        data: response.data.data
+      };
+    }
+    throw new Error('Failed to fetch tasks by type');
+  }
+
+  async getOverdueTasks(): Promise<BaseTask[]> {
+    const response: AxiosResponse<{ success: boolean; count: number; data: BaseTask[] }> = await this.client.get('/tasks/overdue');
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error('Failed to fetch overdue tasks');
   }
 
   // Task type specific endpoints
   async getFoodTasks(): Promise<BaseTask[]> {
-    const response: AxiosResponse<ApiResponse<BaseTask[]>> = await this.client.get('/tasks/food');
-    if (response.data.success && response.data.data) {
+    const response: AxiosResponse<{ success: boolean; data: BaseTask[] }> = await this.client.get('/food-tasks');
+    if (response.data.success) {
       return response.data.data;
     }
-    throw new Error(response.data.message || 'Failed to fetch food tasks');
+    throw new Error('Failed to fetch food tasks');
   }
 
   async getHomeworkTasks(): Promise<BaseTask[]> {
-    const response: AxiosResponse<ApiResponse<BaseTask[]>> = await this.client.get('/tasks/homework');
-    if (response.data.success && response.data.data) {
+    const response: AxiosResponse<{ success: boolean; data: BaseTask[] }> = await this.client.get('/homework-tasks');
+    if (response.data.success) {
       return response.data.data;
     }
-    throw new Error(response.data.message || 'Failed to fetch homework tasks');
+    throw new Error('Failed to fetch homework tasks');
   }
 
   async getWorkTasks(): Promise<BaseTask[]> {
-    const response: AxiosResponse<ApiResponse<BaseTask[]>> = await this.client.get('/tasks/work');
-    if (response.data.success && response.data.data) {
+    const response: AxiosResponse<{ success: boolean; data: BaseTask[] }> = await this.client.get('/work-tasks');
+    if (response.data.success) {
       return response.data.data;
     }
-    throw new Error(response.data.message || 'Failed to fetch work tasks');
+    throw new Error('Failed to fetch work tasks');
   }
 
   async getHealthTasks(): Promise<BaseTask[]> {
-    const response: AxiosResponse<ApiResponse<BaseTask[]>> = await this.client.get('/tasks/health');
-    if (response.data.success && response.data.data) {
+    const response: AxiosResponse<{ success: boolean; data: BaseTask[] }> = await this.client.get('/health-tasks');
+    if (response.data.success) {
       return response.data.data;
     }
-    throw new Error(response.data.message || 'Failed to fetch health tasks');
+    throw new Error('Failed to fetch health tasks');
+  }
+
+  async getEmailTasks(): Promise<BaseTask[]> {
+    const response: AxiosResponse<{ success: boolean; data: BaseTask[] }> = await this.client.get('/email-tasks');
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error('Failed to fetch email tasks');
+  }
+
+  async getMeetingTasks(): Promise<BaseTask[]> {
+    const response: AxiosResponse<{ success: boolean; data: BaseTask[] }> = await this.client.get('/meeting-tasks');
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error('Failed to fetch meeting tasks');
+  }
+
+  async getProjectTasks(): Promise<BaseTask[]> {
+    const response: AxiosResponse<{ success: boolean; data: BaseTask[] }> = await this.client.get('/project-tasks');
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error('Failed to fetch project tasks');
   }
 
   // Friend endpoints
   async getFriends(): Promise<User[]> {
-    const response: AxiosResponse<ApiResponse<User[]>> = await this.client.get('/friends');
-    if (response.data.success && response.data.data) {
+    const response: AxiosResponse<{ success: boolean; count: number; data: User[] }> = await this.client.get('/friends');
+    if (response.data.success) {
       return response.data.data;
     }
-    throw new Error(response.data.message || 'Failed to fetch friends');
+    throw new Error('Failed to fetch friends');
   }
 
-  async sendFriendRequest(userId: string): Promise<void> {
-    const response: AxiosResponse<ApiResponse> = await this.client.post(`/friends/request/${userId}`);
-    if (!response.data.success) {
-      throw new Error(response.data.message || 'Failed to send friend request');
+  async sendFriendRequest(recipientId: string): Promise<{ message: string }> {
+    const response: AxiosResponse<{ success: boolean; message: string }> = await this.client.post('/friends/request', { recipientId });
+    if (response.data.success) {
+      return { message: response.data.message };
     }
+    throw new Error('Failed to send friend request');
   }
 
-  async acceptFriendRequest(userId: string): Promise<void> {
-    const response: AxiosResponse<ApiResponse> = await this.client.post(`/friends/accept/${userId}`);
-    if (!response.data.success) {
-      throw new Error(response.data.message || 'Failed to accept friend request');
+  async acceptFriendRequest(userId: string): Promise<{ message: string }> {
+    const response: AxiosResponse<{ success: boolean; message: string }> = await this.client.put(`/friends/accept/${userId}`);
+    if (response.data.success) {
+      return { message: response.data.message };
     }
+    throw new Error('Failed to accept friend request');
   }
 
-  async rejectFriendRequest(userId: string): Promise<void> {
-    const response: AxiosResponse<ApiResponse> = await this.client.post(`/friends/reject/${userId}`);
-    if (!response.data.success) {
-      throw new Error(response.data.message || 'Failed to reject friend request');
+  async declineFriendRequest(userId: string): Promise<{ message: string }> {
+    const response: AxiosResponse<{ success: boolean; message: string }> = await this.client.put(`/friends/decline/${userId}`);
+    if (response.data.success) {
+      return { message: response.data.message };
     }
+    throw new Error('Failed to decline friend request');
   }
 
-  async removeFriend(userId: string): Promise<void> {
-    const response: AxiosResponse<ApiResponse> = await this.client.delete(`/friends/${userId}`);
-    if (!response.data.success) {
-      throw new Error(response.data.message || 'Failed to remove friend');
+  async getPendingFriendRequests(): Promise<User[]> {
+    const response: AxiosResponse<{ success: boolean; count: number; data: User[] }> = await this.client.get('/friends/pending');
+    if (response.data.success) {
+      return response.data.data;
     }
+    throw new Error('Failed to fetch pending friend requests');
+  }
+
+  async getSentFriendRequests(): Promise<User[]> {
+    const response: AxiosResponse<{ success: boolean; count: number; data: User[] }> = await this.client.get('/friends/sent');
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error('Failed to fetch sent friend requests');
+  }
+
+  async removeFriend(userId: string): Promise<{ message: string }> {
+    const response: AxiosResponse<{ success: boolean; message: string }> = await this.client.delete(`/friends/${userId}`);
+    if (response.data.success) {
+      return { message: response.data.message };
+    }
+    throw new Error('Failed to remove friend');
+  }
+
+  async blockUser(userId: string): Promise<{ message: string }> {
+    const response: AxiosResponse<{ success: boolean; message: string }> = await this.client.put(`/friends/block/${userId}`);
+    if (response.data.success) {
+      return { message: response.data.message };
+    }
+    throw new Error('Failed to block user');
+  }
+
+  async unblockUser(userId: string): Promise<{ message: string }> {
+    const response: AxiosResponse<{ success: boolean; message: string }> = await this.client.put(`/friends/unblock/${userId}`);
+    if (response.data.success) {
+      return { message: response.data.message };
+    }
+    throw new Error('Failed to unblock user');
   }
 
   // Analytics endpoints

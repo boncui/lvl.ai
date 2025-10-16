@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { 
   HomeIcon, 
@@ -13,7 +14,8 @@ import {
   Bars3Icon,
   XMarkIcon,
   BellIcon,
-  UserCircleIcon
+  UserCircleIcon,
+  ArrowRightOnRectangleIcon
 } from '@heroicons/react/24/outline';
 
 interface NavigationItem {
@@ -24,7 +26,7 @@ interface NavigationItem {
 }
 
 const navigation: NavigationItem[] = [
-  { name: 'Dashboard', href: '/', icon: HomeIcon },
+  { name: 'Dashboard', href: '/home', icon: HomeIcon },
   { name: 'Tasks', href: '/tasks', icon: ClipboardDocumentListIcon },
   { name: 'Friends', href: '/friends', icon: UserGroupIcon },
   { name: 'Analytics', href: '/analytics', icon: ChartBarIcon },
@@ -38,6 +40,15 @@ interface SidebarProps {
 export function Sidebar({ children }: SidebarProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const { logout, user } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
 
   return (
     <>
@@ -84,6 +95,28 @@ export function Sidebar({ children }: SidebarProps) {
                 );
               })}
             </nav>
+            
+            {/* User info and logout */}
+            <div className="px-4 py-4 border-t">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+                  <span className="text-primary-foreground font-semibold text-sm">
+                    {user?.name?.charAt(0) || 'U'}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">{user?.name || 'User'}</p>
+                  <p className="text-xs text-muted-foreground">{user?.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="flex items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium text-error hover:bg-error/10 transition-colors w-full"
+              >
+                <ArrowRightOnRectangleIcon className="h-5 w-5" />
+                <span>Logout</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -126,6 +159,28 @@ export function Sidebar({ children }: SidebarProps) {
               </li>
             </ul>
           </nav>
+          
+          {/* User info and logout */}
+          <div className="px-6 py-4 border-t">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+                <span className="text-primary-foreground font-semibold text-sm">
+                  {user?.name?.charAt(0) || 'U'}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">{user?.name || 'User'}</p>
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium text-error hover:bg-error/10 transition-colors w-full"
+            >
+              <ArrowRightOnRectangleIcon className="h-5 w-5" />
+              <span>Logout</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -159,6 +214,14 @@ export function Sidebar({ children }: SidebarProps) {
                   className="-m-2.5 p-2.5 text-muted-foreground hover:text-foreground"
                 >
                   <UserCircleIcon className="h-6 w-6" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="-m-2.5 p-2.5 text-muted-foreground hover:text-error"
+                  title="Logout"
+                >
+                  <ArrowRightOnRectangleIcon className="h-6 w-6" />
                 </button>
               </div>
             </div>

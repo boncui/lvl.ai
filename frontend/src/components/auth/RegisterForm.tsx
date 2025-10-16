@@ -17,6 +17,7 @@ import { PasswordStrengthIndicator } from './PasswordStrengthIndicator';
 export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState('');
   const { register: registerUser } = useAuth();
@@ -34,8 +35,12 @@ export function RegisterForm() {
     try {
       setIsLoading(true);
       setError(null);
+      setSuccess(null);
       await registerUser(data.name, data.email, data.password);
-      router.push('/');
+      setSuccess('Registration successful! Redirecting to login...');
+      setTimeout(() => {
+        router.push('/login');
+      }, 1500);
     } catch (err: unknown) {
       const error = err as Error;
       setError(error.message || 'Registration failed. Please try again.');
@@ -61,6 +66,12 @@ export function RegisterForm() {
             {error && (
               <div className="rounded-lg bg-error/10 border border-error/20 p-3">
                 <p className="text-sm text-error">{error}</p>
+              </div>
+            )}
+            
+            {success && (
+              <div className="rounded-lg bg-success/10 border border-success/20 p-3">
+                <p className="text-sm text-success">{success}</p>
               </div>
             )}
             
@@ -113,7 +124,7 @@ export function RegisterForm() {
               loading={isLoading}
               disabled={isLoading}
             >
-              Create Account
+              {success ? 'Redirecting...' : 'Create Account'}
             </Button>
           </form>
           

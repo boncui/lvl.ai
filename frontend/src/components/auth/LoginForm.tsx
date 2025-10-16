@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema, LoginFormData } from '@/lib/validations/schemas';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -19,6 +19,7 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const {
     register,
@@ -32,8 +33,8 @@ export function LoginForm() {
     try {
       setIsLoading(true);
       setError(null);
-      await login(data.email, data.password);
-      router.push('/');
+      const nextUrl = searchParams.get('next');
+      await login(data.email, data.password, nextUrl || '/home');
     } catch (err: unknown) {
       const error = err as Error;
       setError(error.message || 'Login failed. Please try again.');

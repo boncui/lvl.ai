@@ -12,9 +12,9 @@ const router = Router();
 
 // Generate JWT Token
 const generateToken = (id: string): string => {
-  const secret = env.JWT_SECRET;
+  const secret = env.JWT_ACCESS_TOKEN_SECRET;
   if (!secret) {
-    throw new Error('JWT_SECRET is not defined');
+    throw new Error('JWT_ACCESS_TOKEN_SECRET is not defined');
   }
   return jwt.sign({ id }, secret, {
     expiresIn: env.JWT_EXPIRE

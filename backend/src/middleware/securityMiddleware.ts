@@ -22,7 +22,9 @@ function parseList(envVar?: string): string[] {
 // In production, set this via env to avoid hardcoding
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
-  'http://localhost:5001',
+  'http://localhost:3001', // Frontend port
+  'http://localhost:5001', // Backend port
+  'http://localhost:8000', // Default backend port
   ...parseList(process.env['CORS_ORIGINS']),
 ];
 

@@ -9,7 +9,7 @@ import mongoose from 'mongoose';
   const { default: app } = await import('./app');
   const logger = (await import('./utils/logger')).default;
 
-  const requiredEnv = ['MONGODB_URI', 'JWT_SECRET'];
+  const requiredEnv = ['MONGODB_URI', 'JWT_ACCESS_TOKEN_SECRET'];
   for (const key of requiredEnv) {
     if (!process.env[key]) {
       console.error(`❌ Missing required env var: ${key}`);

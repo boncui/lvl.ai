@@ -182,7 +182,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // caller decides where to go; fallback to home
         if (nextUrl) router.replace(nextUrl);
-        else router.replace('/');
+        else router.replace('/home');
       } catch (err: unknown) {
         // Normalize login errors to user-friendly messages
         if (isAxiosError(err)) {
@@ -212,14 +212,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async (name: string, email: string, password: string, nextUrl?: string) => {
       try {
         const response = await apiClient.register({ name, email, password });
-        setSessionFlag(true);
-        setUser(response.user);
-        setAccessToken(response.token);
-        bcRef.current?.postMessage({ type: 'login' });
+        // Don't automatically log in after registration - let user go to login page
+        // setSessionFlag(true);
+        // setUser(response.user);
+        // setAccessToken(response.token);
+        // bcRef.current?.postMessage({ type: 'login' });
 
-        // caller decides where to go; fallback to home
+        // caller decides where to go; fallback to login page
         if (nextUrl) router.replace(nextUrl);
-        else router.replace('/');
+        else router.replace('/login');
       } catch (err: unknown) {
         // Normalize registration errors to user-friendly messages
         if (isAxiosError(err)) {
@@ -310,9 +311,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const verifyEmail = useCallback(
     async (email: string, code: string): Promise<string> => {
       try {
-        // This would need to be implemented in the API client
-        const response = await apiClient.client.post('/auth/verify-email', { email, code });
-        return response.data.message || 'Email verified successfully';
+        const response = await apiClient.verifyEmail(code);
+        return response.message || 'Email verified successfully';
       } catch (err: unknown) {
         if (isAxiosError(err)) {
           const apiMessage = err.response?.data?.message || err.response?.data?.error;
@@ -326,9 +326,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resendCode = useCallback(async (email: string): Promise<string> => {
     try {
-      // This would need to be implemented in the API client
-      const response = await apiClient.client.post('/auth/resend-verification', { email });
-      return response.data.message || 'Verification code sent';
+      const response = await apiClient.resendVerificationEmail(email);
+      return response.message || 'Verification code sent';
     } catch (err: unknown) {
       if (isAxiosError(err)) {
         const apiMessage = err.response?.data?.message || err.response?.data?.error;

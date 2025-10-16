@@ -37,7 +37,13 @@ export const env = {
   
   // Logging
   LOG_LEVEL: process.env['LOG_LEVEL'] || 'info',
-  LOG_FILE: process.env['LOG_FILE'] || 'logs/app.log'
+  LOG_FILE: process.env['LOG_FILE'] || 'logs/app.log',
+  
+  // AI/OpenRouter
+  OPENROUTER_API_KEY: process.env['OPENROUTER_API_KEY'] || '',
+  
+  // AI/DeepSeek
+  DEEPSEEK_API_KEY: process.env['DEEPSEEK_API_KEY'] || ''
 };
 
 export const isDevelopment = env.NODE_ENV === 'development';
