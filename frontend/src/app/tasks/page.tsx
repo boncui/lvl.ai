@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import CreateTaskModal from '@/components/tasks/CreateTaskModal';
+import EditTaskModal from '@/components/tasks/EditTaskModal';
 import { TaskList } from '@/components/tasks/TaskList';
 import ClientGuard from '@/components/ClientGuard';
 import { TaskPriority, TaskStatus, Task, ITask } from '@/lib/types';
@@ -37,6 +38,10 @@ export default function TasksPage() {
   // State for task form
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  // State for edit modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   // State for tasks
   const [tasks, setTasks] = useState<DisplayTask[]>([]);
@@ -126,6 +131,11 @@ export default function TasksPage() {
     setSelectedTags([]);
   };
 
+  const handleCancelEditForm = () => {
+    setShowEditModal(false);
+    setEditingTask(null);
+  };
+
   const handleAddTask = (category?: string) => {
     if (category && category !== 'all') {
       setSelectedTags([category]);
@@ -135,10 +145,51 @@ export default function TasksPage() {
     setShowTaskForm(true);
   };
 
+  const handleTaskUpdated = (updated: Task) => {
+    const displayTask: DisplayTask = {
+      id: updated._id,
+      title: updated.title,
+      description: updated.description || '',
+      priority: updated.priority,
+      status: updated.status,
+      dueDate: updated.dueDate ? new Date(updated.dueDate).toISOString().split('T')[0] : '',
+      tags: updated.tags || [],
+      points: updated.points,
+    };
+    
+    // Update the task in the list
+    setTasks((prev) => prev.map(task => 
+      task.id === displayTask.id ? displayTask : task
+    ));
+    setShowEditModal(false);
+    setEditingTask(null);
+  };
+
   // Task action handlers
-  const handleEditTask = (taskId: string | number) => {
-    // TODO: Implement edit functionality
-    console.log('Edit task:', taskId);
+  const handleEditTask = async (taskId: string | number) => {
+    try {
+      // Fetch the full task details from the API
+      const response = await TaskAPI.getTaskById(taskId.toString());
+      
+      // Parse dates for frontend use
+      const task: Task = {
+        ...response.data,
+        taskTime: response.data.taskTime ? new Date(response.data.taskTime) : undefined,
+        dueDate: response.data.dueDate ? new Date(response.data.dueDate) : undefined,
+        completedAt: response.data.completedAt ? new Date(response.data.completedAt) : undefined,
+        createdAt: new Date(response.data.createdAt),
+        updatedAt: new Date(response.data.updatedAt),
+      };
+      
+      setEditingTask(task);
+      setShowEditModal(true);
+    } catch (err: any) {
+      console.error('Error fetching task for edit:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to load task. Please try again.';
+      setError(errorMessage);
+      // Clear error after 5 seconds
+      setTimeout(() => setError(null), 5000);
+    }
   };
 
   const handleCompleteTask = async (taskId: string | number) => {
@@ -311,6 +362,14 @@ export default function TasksPage() {
         onClose={handleCancelTaskForm}
         initialTags={selectedTags}
         onCreated={handleTaskCreated}
+      />
+
+      {/* Edit Task Modal */}
+      <EditTaskModal
+        isOpen={showEditModal}
+        onClose={handleCancelEditForm}
+        task={editingTask}
+        onUpdated={handleTaskUpdated}
       />
       </Sidebar>
     </ClientGuard>

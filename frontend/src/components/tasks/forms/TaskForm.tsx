@@ -8,9 +8,11 @@ import { TaskPriority, TaskStatus, CreateTaskDTO } from '@/lib/types';
 
 interface TaskFormProps {
   initialTags?: string[];
+  initialData?: CreateTaskDTO; // For editing existing tasks
   onSubmit: (data: CreateTaskDTO) => void | Promise<void>;
   onCancel: () => void;
   isSubmitting?: boolean;
+  isEditing?: boolean; // To change button text
 }
 
 interface ValidationErrors {
@@ -23,19 +25,21 @@ interface ValidationErrors {
 
 export function TaskForm({ 
   initialTags = [], 
+  initialData,
   onSubmit, 
   onCancel, 
-  isSubmitting = false 
+  isSubmitting = false,
+  isEditing = false
 }: TaskFormProps) {
   const [formData, setFormData] = useState<CreateTaskDTO>({
-    title: '',
-    description: '',
-    priority: TaskPriority.MEDIUM,
-    status: TaskStatus.PENDING,
-    dueDate: '',
-    taskTime: '',
-    points: 10,
-    tags: initialTags,
+    title: initialData?.title || '',
+    description: initialData?.description || '',
+    priority: initialData?.priority || TaskPriority.MEDIUM,
+    status: initialData?.status || TaskStatus.PENDING,
+    dueDate: initialData?.dueDate || '',
+    taskTime: initialData?.taskTime || '',
+    points: initialData?.points || 10,
+    tags: initialData?.tags || initialTags,
   });
 
   const [tagInput, setTagInput] = useState('');
@@ -399,7 +403,10 @@ export function TaskForm({
           type="submit"
           disabled={isSubmitting}
         >
-          {isSubmitting ? 'Creating...' : 'Create Task'}
+          {isSubmitting 
+            ? (isEditing ? 'Updating...' : 'Creating...') 
+            : (isEditing ? 'Update Task' : 'Create Task')
+          }
         </Button>
       </div>
     </form>
