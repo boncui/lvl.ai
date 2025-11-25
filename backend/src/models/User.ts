@@ -40,6 +40,8 @@ export interface IUser extends Document {
     received: mongoose.Types.ObjectId[];
   };
   blockedUsers: mongoose.Types.ObjectId[];
+  followers: mongoose.Types.ObjectId[];
+  following: mongoose.Types.ObjectId[];
 
   createdAt: Date;
   updatedAt: Date;
@@ -130,6 +132,18 @@ const UserSchema = new Schema<IUser>(
     blockedUsers: [{
       type: Schema.Types.ObjectId,
       ref: 'User'
+    }],
+
+    // Followers/Following for lightweight social graph
+    followers: [{
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: []
+    }],
+    following: [{
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: []
     }]
   },
   { timestamps: true }

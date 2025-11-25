@@ -1,6 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { TaskAPI, FriendsAPI } from '@/lib/api';
-import type { TaskFilters } from '@/lib/types';
+import { TaskAPI } from '@/lib/api';
 
 // Simplified hook for tasks
 export function useTasksAPI() {
@@ -34,32 +33,10 @@ export function useTasksAPI() {
   return TaskAPI;
 }
 
-// Hook for friends
-export function useFriendsAPI() {
-  const { user } = useAuth();
-  
-  if (!user) {
-    return {
-      sendFriendRequest: () => Promise.reject(new Error('User not authenticated')),
-      acceptFriendRequest: () => Promise.reject(new Error('User not authenticated')),
-      declineFriendRequest: () => Promise.reject(new Error('User not authenticated')),
-      getFriends: () => Promise.reject(new Error('User not authenticated')),
-      getPendingRequests: () => Promise.reject(new Error('User not authenticated')),
-      getSentRequests: () => Promise.reject(new Error('User not authenticated')),
-      removeFriend: () => Promise.reject(new Error('User not authenticated')),
-      blockUser: () => Promise.reject(new Error('User not authenticated')),
-      unblockUser: () => Promise.reject(new Error('User not authenticated')),
-    };
-  }
-
-  return FriendsAPI;
-}
-
 // Combined hook for all APIs
 export function useAllAPIs() {
   return {
     tasks: useTasksAPI(),
-    friends: useFriendsAPI(),
   };
 }
 
