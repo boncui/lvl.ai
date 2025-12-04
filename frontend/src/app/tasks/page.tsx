@@ -72,9 +72,10 @@ export default function TasksPage() {
       }));
 
       setTasks(displayTasks);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching tasks:', err);
-      setError(err.response?.data?.message || 'Failed to fetch tasks. Please try again.');
+      const errorResponse = err as { response?: { data?: { message?: string } } };
+      setError(errorResponse.response?.data?.message || 'Failed to fetch tasks. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -183,9 +184,10 @@ export default function TasksPage() {
       
       setEditingTask(task);
       setShowEditModal(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching task for edit:', err);
-      const errorMessage = err.response?.data?.message || err.message || 'Failed to load task. Please try again.';
+      const errorResponse = err as { response?: { data?: { message?: string } }; message?: string };
+      const errorMessage = errorResponse.response?.data?.message || errorResponse.message || 'Failed to load task. Please try again.';
       setError(errorMessage);
       // Clear error after 5 seconds
       setTimeout(() => setError(null), 5000);
@@ -202,9 +204,10 @@ export default function TasksPage() {
           ? { ...task, status: TaskStatus.COMPLETED }
           : task
       ));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error completing task:', err);
-      const errorMessage = err.response?.data?.message || err.message || 'Failed to complete task. Please try again.';
+      const errorResponse = err as { response?: { data?: { message?: string } }; message?: string };
+      const errorMessage = errorResponse.response?.data?.message || errorResponse.message || 'Failed to complete task. Please try again.';
       setError(errorMessage);
       // Clear error after 5 seconds
       setTimeout(() => setError(null), 5000);
@@ -221,9 +224,10 @@ export default function TasksPage() {
       
       // Update local state
       setTasks(prev => prev.filter(task => task.id !== taskId));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error deleting task:', err);
-      const errorMessage = err.response?.data?.message || err.message || 'Failed to delete task. Please try again.';
+      const errorResponse = err as { response?: { data?: { message?: string } }; message?: string };
+      const errorMessage = errorResponse.response?.data?.message || errorResponse.message || 'Failed to delete task. Please try again.';
       setError(errorMessage);
       // Clear error after 5 seconds
       setTimeout(() => setError(null), 5000);

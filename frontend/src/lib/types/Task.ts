@@ -31,6 +31,9 @@ export interface ITask {
   userId: string; // User who owns the task
   createdAt: Date | string; // Time of conception
   updatedAt: Date | string;
+  // Legacy fields for backward compatibility
+  taskType?: string;
+  xpValue?: number;
 }
 
 // ---------- FRONTEND TASK TYPE ----------
@@ -76,8 +79,10 @@ export interface UpdateTaskDTO {
 
 // ---------- TASK FILTERS ----------
 export interface TaskFilters {
-  status?: TaskStatus;
-  priority?: TaskPriority;
+  status?: TaskStatus[];
+  priority?: TaskPriority[];
+  taskType?: string[];
+  tags?: string[];
   tag?: string;
   page?: number;
   limit?: number;

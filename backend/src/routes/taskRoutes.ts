@@ -376,6 +376,186 @@ router.get('/filter/overdue', authenticate, async (req: AuthenticatedRequest, re
   }
 });
 
+// @route   GET /api/tasks/analytics
+// @desc    Get comprehensive analytics data for dashboard
+// @access  Private
+router.get('/analytics/overview', authenticate, [
+  query('period').optional().isIn(['week', 'month', 'year']).withMessage('Period must be week, month, or year')
+], async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, errors: errors.array() });
+      return;
+    }
+
+    const userId = req.user!._id;
+    const period = (req.query['period'] as string) || 'month';
+    
+    // Calculate date range based on period
+    const now = new Date();
+    const startDate = new Date();
+    let dateFormat: string;
+    let intervals: number;
+    
+    switch (period) {
+      case 'week':
+        startDate.setDate(now.getDate() - 7);
+        dateFormat = 'day';
+        intervals = 7;
+        break;
+      case 'year':
+        startDate.setFullYear(now.getFullYear() - 1);
+        dateFormat = 'month';
+        intervals = 12;
+        break;
+      case 'month':
+      default:
+        startDate.setMonth(now.getMonth() - 1);
+        dateFormat = 'day';
+        intervals = 30;
+        break;
+    }
+
+    // Get all tasks for the user in the date range
+    const tasks = await Task.find({
+      userId,
+      createdAt: { $gte: startDate }
+    }).sort({ createdAt: 1 });
+
+    // Get all completed tasks for XP tracking
+    const completedTasks = tasks.filter(t => t.status === TaskStatus.COMPLETED);
+
+    // Category breakdown (by tags)
+    const categoryBreakdown: Record<string, { total: number; completed: number; points: number }> = {};
+    tasks.forEach(task => {
+      const tags = task.tags.length > 0 ? task.tags : ['uncategorized'];
+      tags.forEach(tag => {
+        const normalizedTag = tag.toLowerCase();
+        if (!categoryBreakdown[normalizedTag]) {
+          categoryBreakdown[normalizedTag] = { total: 0, completed: 0, points: 0 };
+        }
+        categoryBreakdown[normalizedTag].total += 1;
+        if (task.status === TaskStatus.COMPLETED) {
+          categoryBreakdown[normalizedTag].completed += 1;
+          categoryBreakdown[normalizedTag].points += task.points;
+        }
+      });
+    });
+
+    // Generate time series data for task completion
+    const timeSeriesData: Array<{
+      date: string;
+      completed: number;
+      created: number;
+      xpEarned: number;
+    }> = [];
+
+    // Create date buckets
+    const dateBuckets: Map<string, { completed: number; created: number; xpEarned: number }> = new Map();
+    
+    for (let i = 0; i < intervals; i++) {
+      const date = new Date(startDate);
+      if (dateFormat === 'day') {
+        date.setDate(startDate.getDate() + i);
+      } else {
+        date.setMonth(startDate.getMonth() + i);
+      }
+      
+      const dateStr = date.toISOString().split('T')[0] || '';
+      const key = dateFormat === 'day' 
+        ? dateStr
+        : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      
+      dateBuckets.set(key, { completed: 0, created: 0, xpEarned: 0 });
+    }
+
+    // Populate buckets with task data
+    tasks.forEach(task => {
+      const createdDateStr = task.createdAt.toISOString().split('T')[0] || '';
+      const createdKey = dateFormat === 'day'
+        ? createdDateStr
+        : `${task.createdAt.getFullYear()}-${String(task.createdAt.getMonth() + 1).padStart(2, '0')}`;
+      
+      if (dateBuckets.has(createdKey)) {
+        const bucket = dateBuckets.get(createdKey)!;
+        bucket.created += 1;
+      }
+
+      if (task.status === TaskStatus.COMPLETED && task.completedAt) {
+        const completedDateStr = task.completedAt.toISOString().split('T')[0] || '';
+        const completedKey = dateFormat === 'day'
+          ? completedDateStr
+          : `${task.completedAt.getFullYear()}-${String(task.completedAt.getMonth() + 1).padStart(2, '0')}`;
+        
+        if (dateBuckets.has(completedKey)) {
+          const bucket = dateBuckets.get(completedKey)!;
+          bucket.completed += 1;
+          bucket.xpEarned += task.points;
+        }
+      }
+    });
+
+    // Convert buckets to array
+    dateBuckets.forEach((value, key) => {
+      timeSeriesData.push({
+        date: key,
+        ...value
+      });
+    });
+
+    // Calculate skill scores (based on completion rate by category)
+    const skillScores: Array<{ category: string; score: number; tasksCompleted: number }> = [];
+    Object.entries(categoryBreakdown).forEach(([category, data]) => {
+      const completionRate = data.total > 0 ? (data.completed / data.total) * 100 : 0;
+      skillScores.push({
+        category,
+        score: Math.round(completionRate),
+        tasksCompleted: data.completed
+      });
+    });
+
+    // Sort skill scores by tasks completed (descending)
+    skillScores.sort((a, b) => b.tasksCompleted - a.tasksCompleted);
+
+    // Calculate summary stats
+    const totalTasks = tasks.length;
+    const totalCompleted = completedTasks.length;
+    const totalXPEarned = completedTasks.reduce((sum, t) => sum + t.points, 0);
+    const completionRate = totalTasks > 0 ? Math.round((totalCompleted / totalTasks) * 100) : 0;
+    const averagePointsPerTask = totalCompleted > 0 ? Math.round(totalXPEarned / totalCompleted) : 0;
+
+    // Get user for level info
+    const user = await User.findById(userId).select('level xp totalTasksCompleted');
+
+    res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          totalTasks,
+          totalCompleted,
+          totalXPEarned,
+          completionRate,
+          averagePointsPerTask,
+          currentLevel: user?.level || 1,
+          currentXP: user?.xp || 0,
+          lifetimeTasksCompleted: user?.totalTasksCompleted || 0
+        },
+        categoryBreakdown: Object.entries(categoryBreakdown).map(([category, data]) => ({
+          category,
+          ...data,
+          completionRate: data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0
+        })),
+        timeSeriesData,
+        skillScores: skillScores.slice(0, 8), // Top 8 categories
+        period
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // @route   POST /api/tasks/:id/complete
 // @desc    Mark task as complete
 // @access  Private

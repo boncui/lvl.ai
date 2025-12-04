@@ -34,8 +34,9 @@ export default function DebugAuthPage() {
       } else {
         setApiStatus(`⚠️ Backend responded with ${response.status}`);
       }
-    } catch (error: any) {
-      setApiStatus(`❌ Backend NOT reachable: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setApiStatus(`❌ Backend NOT reachable: ${message}`);
     }
   };
 
@@ -44,8 +45,10 @@ export default function DebugAuthPage() {
     try {
       const user = await apiClient.getCurrentUser();
       setCurrentUserTest(`✅ Success: ${JSON.stringify(user)}`);
-    } catch (error: any) {
-      setCurrentUserTest(`❌ Failed: ${error.message} (Status: ${error.response?.status})`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      setCurrentUserTest(`❌ Failed: ${message} (Status: ${status})`);
     }
   };
 

@@ -2,6 +2,7 @@
 
 // Task Types
 export { TaskPriority, TaskStatus } from './Task';
+export { TaskType } from './BaseTask';
 export type { 
   ITask,
   Task,

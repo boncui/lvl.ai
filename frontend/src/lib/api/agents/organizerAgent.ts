@@ -4,7 +4,15 @@
  */
 
 import { apiClient } from '../client';
-import { ApiResponse } from '@/lib/types';
+
+interface ApiError {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+}
 
 // ---------- TYPES ----------
 
@@ -148,9 +156,10 @@ export async function chatWithOrganizer(request: ChatRequest): Promise<ChatRespo
   try {
     const response = await apiClient.client.post<ChatResponse>('/organizer/chat', request);
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error chatting with organizer:', error);
-    throw new Error(error.response?.data?.message || 'Failed to chat with organizer');
+    const apiError = error as ApiError;
+    throw new Error(apiError.response?.data?.message || 'Failed to chat with organizer');
   }
 }
 
@@ -161,9 +170,10 @@ export async function getOrganizationSuggestions(): Promise<OrganizationSuggesti
   try {
     const response = await apiClient.client.get<OrganizationSuggestionsResponse>('/organizer/suggestions');
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error getting organization suggestions:', error);
-    throw new Error(error.response?.data?.message || 'Failed to get organization suggestions');
+    const apiError = error as ApiError;
+    throw new Error(apiError.response?.data?.message || 'Failed to get organization suggestions');
   }
 }
 
@@ -174,9 +184,10 @@ export async function getDailyTaskPlan(): Promise<DailyPlanResponse> {
   try {
     const response = await apiClient.client.get<DailyPlanResponse>('/organizer/daily-plan');
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error getting daily task plan:', error);
-    throw new Error(error.response?.data?.message || 'Failed to get daily task plan');
+    const apiError = error as ApiError;
+    throw new Error(apiError.response?.data?.message || 'Failed to get daily task plan');
   }
 }
 
@@ -187,9 +198,10 @@ export async function getProductivityAnalysis(): Promise<ProductivityAnalysisRes
   try {
     const response = await apiClient.client.get<ProductivityAnalysisResponse>('/organizer/productivity-analysis');
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error getting productivity analysis:', error);
-    throw new Error(error.response?.data?.message || 'Failed to get productivity analysis');
+    const apiError = error as ApiError;
+    throw new Error(apiError.response?.data?.message || 'Failed to get productivity analysis');
   }
 }
 
@@ -200,9 +212,10 @@ export async function getMotivation(): Promise<MotivationResponse> {
   try {
     const response = await apiClient.client.get<MotivationResponse>('/organizer/motivation');
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error getting motivation:', error);
-    throw new Error(error.response?.data?.message || 'Failed to get motivation');
+    const apiError = error as ApiError;
+    throw new Error(apiError.response?.data?.message || 'Failed to get motivation');
   }
 }
 
@@ -213,9 +226,10 @@ export async function getUserContext(): Promise<ContextResponse> {
   try {
     const response = await apiClient.client.get<ContextResponse>('/organizer/context');
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error getting user context:', error);
-    throw new Error(error.response?.data?.message || 'Failed to get user context');
+    const apiError = error as ApiError;
+    throw new Error(apiError.response?.data?.message || 'Failed to get user context');
   }
 }
 
@@ -228,9 +242,10 @@ export async function testAIProvider(provider?: AIProvider): Promise<ProviderTes
     const url = provider ? `/organizer/test-provider?provider=${provider}` : '/organizer/test-provider';
     const response = await apiClient.client.get<ProviderTestResult>(url);
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error testing AI provider:', error);
-    throw new Error(error.response?.data?.message || 'Failed to test AI provider');
+    const apiError = error as ApiError;
+    throw new Error(apiError.response?.data?.message || 'Failed to test AI provider');
   }
 }
 
@@ -241,9 +256,10 @@ export async function checkHealth(): Promise<HealthCheckResponse> {
   try {
     const response = await apiClient.client.get<HealthCheckResponse>('/organizer/health');
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error checking health:', error);
-    throw new Error(error.response?.data?.message || 'Failed to check health');
+    const apiError = error as ApiError;
+    throw new Error(apiError.response?.data?.message || 'Failed to check health');
   }
 }
 
@@ -289,7 +305,7 @@ export async function isProviderAvailable(provider: AIProvider): Promise<boolean
   try {
     const result = await testAIProvider(provider);
     return result.testResult.status === 'connected';
-  } catch (error) {
+  } catch {
     return false;
   }
 }

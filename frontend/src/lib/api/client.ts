@@ -261,7 +261,7 @@ class ApiClient {
     const params = new URLSearchParams();
     if (period) params.append('period', period.toString());
 
-    const response: AxiosResponse<{ success: boolean; data: any }> = await this.client.get(`/tasks/stats?${params.toString()}`);
+    const response: AxiosResponse<{ success: boolean; data: { totalTasks: number; byType: Record<string, number>; byStatus: Record<string, number>; byPriority: Record<string, number>; totalXP: number; overdue: number } }> = await this.client.get(`/tasks/stats?${params.toString()}`);
     if (response.data.success) {
       return response.data.data;
     }
@@ -299,32 +299,32 @@ class ApiClient {
     }
   }
 
-  async addTaskNote(taskId: string, content: string): Promise<any[]> {
-    const response: AxiosResponse<{ success: boolean; data: any[] }> = await this.client.post(`/tasks/${taskId}/notes`, { content });
+  async addTaskNote(taskId: string, content: string): Promise<{ content: string; createdAt: string }[]> {
+    const response: AxiosResponse<{ success: boolean; data: { content: string; createdAt: string }[] }> = await this.client.post(`/tasks/${taskId}/notes`, { content });
     if (response.data.success) {
       return response.data.data;
     }
     throw new Error('Failed to add note');
   }
 
-  async addTaskReminder(taskId: string, date: string, message: string): Promise<any[]> {
-    const response: AxiosResponse<{ success: boolean; data: any[] }> = await this.client.post(`/tasks/${taskId}/reminders`, { date, message });
+  async addTaskReminder(taskId: string, date: string, message: string): Promise<{ date: string; message: string }[]> {
+    const response: AxiosResponse<{ success: boolean; data: { date: string; message: string }[] }> = await this.client.post(`/tasks/${taskId}/reminders`, { date, message });
     if (response.data.success) {
       return response.data.data;
     }
     throw new Error('Failed to add reminder');
   }
 
-  async addTaskCollaborator(taskId: string, collaboratorId: string): Promise<any[]> {
-    const response: AxiosResponse<{ success: boolean; data: any[] }> = await this.client.post(`/tasks/${taskId}/collaborators`, { collaboratorId });
+  async addTaskCollaborator(taskId: string, collaboratorId: string): Promise<string[]> {
+    const response: AxiosResponse<{ success: boolean; data: string[] }> = await this.client.post(`/tasks/${taskId}/collaborators`, { collaboratorId });
     if (response.data.success) {
       return response.data.data;
     }
     throw new Error('Failed to add collaborator');
   }
 
-  async removeTaskCollaborator(taskId: string, collaboratorId: string): Promise<any[]> {
-    const response: AxiosResponse<{ success: boolean; data: any[] }> = await this.client.delete(`/tasks/${taskId}/collaborators/${collaboratorId}`);
+  async removeTaskCollaborator(taskId: string, collaboratorId: string): Promise<string[]> {
+    const response: AxiosResponse<{ success: boolean; data: string[] }> = await this.client.delete(`/tasks/${taskId}/collaborators/${collaboratorId}`);
     if (response.data.success) {
       return response.data.data;
     }

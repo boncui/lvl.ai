@@ -56,6 +56,49 @@ export interface TaskDeleteResponse {
   message: string;
 }
 
+export interface AnalyticsSummary {
+  totalTasks: number;
+  totalCompleted: number;
+  totalXPEarned: number;
+  completionRate: number;
+  averagePointsPerTask: number;
+  currentLevel: number;
+  currentXP: number;
+  lifetimeTasksCompleted: number;
+}
+
+export interface CategoryData {
+  category: string;
+  total: number;
+  completed: number;
+  points: number;
+  completionRate: number;
+}
+
+export interface TimeSeriesData {
+  date: string;
+  completed: number;
+  created: number;
+  xpEarned: number;
+}
+
+export interface SkillScore {
+  category: string;
+  score: number;
+  tasksCompleted: number;
+}
+
+export interface AnalyticsResponse {
+  success: boolean;
+  data: {
+    summary: AnalyticsSummary;
+    categoryBreakdown: CategoryData[];
+    timeSeriesData: TimeSeriesData[];
+    skillScores: SkillScore[];
+    period: 'week' | 'month' | 'year';
+  };
+}
+
 // ---------- API FUNCTIONS ----------
 
 /**
@@ -173,6 +216,17 @@ export const completeTask = async (id: string): Promise<TaskCompleteResponse> =>
     `/tasks/${id}/complete`,
     {}
   );
+  return response.data;
+};
+
+/**
+ * GET /api/tasks/analytics/overview
+ * Get comprehensive analytics data for dashboard
+ * @param period - Time period: 'week', 'month', or 'year' (default: 'month')
+ * @access Private
+ */
+export const getAnalytics = async (period: 'week' | 'month' | 'year' = 'month'): Promise<AnalyticsResponse> => {
+  const response = await apiClient.client.get<AnalyticsResponse>(`/tasks/analytics/overview?period=${period}`);
   return response.data;
 };
 
@@ -339,6 +393,9 @@ export default {
   getUpcomingTasks,
   getOverdueTasks,
   completeTask,
+  
+  // Analytics
+  getAnalytics,
   
   // Convenience filters
   getTasksByStatus,

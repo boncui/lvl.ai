@@ -166,3 +166,28 @@ export interface AppError {
   message: string;
   details?: unknown;
 }
+
+// User Profile Types
+export interface Metric {
+  id: string;
+  name: string;
+  value: number;
+  unit?: string;
+  icon?: string;
+  trend?: 'up' | 'down' | 'stable';
+  change?: number;
+  date: Date;
+  metricType: string;
+  notes?: string;
+}
+
+export interface LevelProgress {
+  level: number;
+  xp: number;
+  currentXP: number;
+  requiredXP: number;
+  progress: number;
+  category: string;
+  dailyStreak?: number;
+  totalCompleted?: number;
+}

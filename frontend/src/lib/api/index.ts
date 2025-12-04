@@ -45,6 +45,11 @@ export type {
   TaskStatsResponse,
   TaskCompleteResponse,
   TaskDeleteResponse,
+  AnalyticsResponse,
+  AnalyticsSummary,
+  CategoryData,
+  TimeSeriesData,
+  SkillScore,
 } from './task';
 
 // Re-export Common types

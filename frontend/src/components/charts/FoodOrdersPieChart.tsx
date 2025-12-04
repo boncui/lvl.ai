@@ -39,7 +39,7 @@ export function FoodOrdersPieChart({
             outerRadius={80}
             fill="#8884d8"
             dataKey="value"
-            label={showLabels ? (props: any) => `${props.name}: ${(props.percent * 100).toFixed(0)}%` : false}
+            label={showLabels ? ({ name, percent }: { name?: string; percent?: number }) => `${name || ''}: ${((percent || 0) * 100).toFixed(0)}%` : false}
           >
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />

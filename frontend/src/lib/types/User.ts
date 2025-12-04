@@ -1,5 +1,17 @@
 // Frontend types based on simplified backend User model
 
+// ---------- ENUMS ----------
+export enum LifeCategory {
+  HEALTH = 'health',
+  WORK = 'work',
+  PERSONAL = 'personal',
+  SOCIAL = 'social',
+  EDUCATION = 'education',
+  FINANCE = 'finance',
+  HOME = 'home',
+  OTHER = 'other',
+}
+
 // ---------- INTERFACES ----------
 export interface IUserPreferences {
   timezone: string;

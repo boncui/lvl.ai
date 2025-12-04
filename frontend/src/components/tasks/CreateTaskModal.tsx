@@ -65,26 +65,37 @@ function CreateTaskModal({ isOpen, onClose, initialTags = [], onCreated }: Creat
       
       // Close the modal
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error creating task:', err);
       
       // Extract error message from various sources
       let errorMessage = 'Failed to create task. Please try again.';
       
-      if (err.response?.data) {
-        if (typeof err.response.data.message === 'string') {
-          errorMessage = err.response.data.message;
-        } else if (err.response.data.error) {
-          errorMessage = err.response.data.error;
-        } else if (err.response.data.errors) {
+      const errorResponse = err as { 
+        response?: { 
+          data?: { 
+            message?: string; 
+            error?: string; 
+            errors?: Record<string, string> 
+          } 
+        }; 
+        message?: string 
+      };
+      
+      if (errorResponse.response?.data) {
+        if (typeof errorResponse.response.data.message === 'string') {
+          errorMessage = errorResponse.response.data.message;
+        } else if (errorResponse.response.data.error) {
+          errorMessage = errorResponse.response.data.error;
+        } else if (errorResponse.response.data.errors) {
           // Handle validation errors object
-          const errors = err.response.data.errors;
+          const errors = errorResponse.response.data.errors;
           errorMessage = Object.entries(errors)
             .map(([field, msg]) => `${field}: ${msg}`)
             .join(', ');
         }
-      } else if (err.message) {
-        errorMessage = err.message;
+      } else if (errorResponse.message) {
+        errorMessage = errorResponse.message;
       }
       
       setError(errorMessage);
