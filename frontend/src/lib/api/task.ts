@@ -143,8 +143,32 @@ export const getTaskStats = async (period?: number): Promise<TaskStatsResponse> 
  * Create new task
  * @access Private
  */
+const sanitizeTaskPayload = <T extends CreateTaskDTO | UpdateTaskDTO>(data: T): T => {
+  const payload: Record<string, unknown> = { ...data };
+
+  // Strip empty strings so express-validator optional() fields don't fail
+  ['dueDate', 'taskTime', 'description'].forEach((field) => {
+    if (payload[field] === '') {
+      delete payload[field];
+    }
+  });
+
+  // Remove empty tags array
+  if (Array.isArray(payload.tags) && payload.tags.length === 0) {
+    delete payload.tags;
+  }
+
+  // Drop undefined/NaN points
+  if (payload.points === undefined || Number.isNaN(payload.points)) {
+    delete payload.points;
+  }
+
+  return payload as T;
+};
+
 export const createTask = async (taskData: CreateTaskDTO): Promise<TaskResponse> => {
-  const response = await apiClient.client.post<TaskResponse>('/tasks', taskData);
+  const payload = sanitizeTaskPayload(taskData);
+  const response = await apiClient.client.post<TaskResponse>('/tasks', payload);
   return response.data;
 };
 
@@ -167,7 +191,8 @@ export const updateTask = async (
   id: string,
   taskData: UpdateTaskDTO
 ): Promise<TaskResponse> => {
-  const response = await apiClient.client.put<TaskResponse>(`/tasks/${id}`, taskData);
+  const payload = sanitizeTaskPayload(taskData);
+  const response = await apiClient.client.put<TaskResponse>(`/tasks/${id}`, payload);
   return response.data;
 };
 
@@ -412,4 +437,3 @@ export default {
   filterTasksByDateRange,
   sortTasks,
 };
-

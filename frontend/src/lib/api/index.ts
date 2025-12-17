@@ -8,8 +8,9 @@ export { UserAPI } from './users';
 export { default as TaskAPI } from './task';
 export * as TaskService from './task';
 
-// Friends API
-export { default as FriendsAPI } from './friends';
+// Leaderboard API
+export { default as LeaderboardAPI } from './leaderboard';
+export { default as GameAPI } from './game';
 
 // AI Agents API
 export { default as organizerAgentAPI } from './agents/organizerAgent';

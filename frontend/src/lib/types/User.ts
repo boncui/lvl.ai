@@ -57,6 +57,8 @@ export interface IUser {
   friends: string[];
   friendRequests: IFriendRequests;
   blockedUsers: string[];
+  followers: string[];
+  following: string[];
 
   // Timestamps
   createdAt: Date | string;
@@ -79,6 +81,8 @@ export interface User {
   friends: string[];
   friendRequests: FriendRequests;
   blockedUsers: string[];
+  followers: string[];
+  following: string[];
   createdAt: Date;
   updatedAt: Date;
 }

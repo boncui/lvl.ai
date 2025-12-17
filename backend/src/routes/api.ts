@@ -13,6 +13,8 @@ import friendRoutes from './friendRoutes';
 
 // Import AI organizer routes
 import organizerRoutes from './organizerAgentRoutes';
+import leaderboardRoutes from './leaderboardRoutes';
+import gameRoutes from './gameRoutes';
 
 const router = Router();
 
@@ -51,6 +53,8 @@ router.use('/auth', authRoutes);
 // Mount user and friend routes
 router.use('/users', userRoutes);
 router.use('/friends', friendRoutes);
+router.use('/leaderboard', leaderboardRoutes);
+router.use('/game', gameRoutes);
 
 // Mount task routes
 router.use('/tasks', taskRoutes);

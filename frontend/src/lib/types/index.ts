@@ -39,6 +39,9 @@ export type {
 // User Helper Functions
 export { parseUserDates, getNextLevelXP, getXPProgress, canLevelUp } from './User';
 
+// Leaderboard
+export type { LeaderboardEntry, LeaderboardMetric, LeaderboardWindow } from './Leaderboard';
+
 // Backward compatibility - Legacy exports (will be removed in future)
 // These are here temporarily to prevent breaking changes
 export { TaskPriority as TaskPriorityLegacy, TaskStatus as TaskStatusLegacy } from './Task';

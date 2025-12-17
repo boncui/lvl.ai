@@ -45,7 +45,7 @@ export default function LandingPage() {
     {
       icon: <UserGroupIcon className="h-8 w-8 text-primary" />,
       title: "Social Features",
-      description: "Connect with friends, share achievements, and compete in challenges to stay accountable and motivated."
+      description: "Compete in Time Killer runs and climb the leaderboard to stay accountable and motivated."
     },
     {
       icon: <SparklesIcon className="h-8 w-8 text-primary" />,

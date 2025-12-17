@@ -1,10 +1,63 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { body, param } from 'express-validator';
+import { body, param, query } from 'express-validator';
 import User from '@/models/User';
 import { CustomError } from '@/middleware/errorHandler';
 import authenticate from '../middleware/auth';
+import { validationResult } from 'express-validator';
 
 const router = Router();
+
+// Utility to standardize validation handling
+const handleValidation = (req: Request, res: Response): boolean => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({ success: false, errors: errors.array() });
+    return false;
+  }
+  return true;
+};
+
+// @route   GET /api/friends/search
+// @desc    Search users to add/follow
+// @access  Private
+router.get('/search', authenticate, [
+  query('query').isString().isLength({ min: 1 }).withMessage('query is required')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!handleValidation(req, res)) return;
+
+    const q = (req.query['query'] as string).trim();
+    const currentUserId = (req as any).user['id'];
+
+    const results = await User.find({
+      _id: { $ne: currentUserId },
+      $or: [
+        { name: { $regex: q, $options: 'i' } },
+        { email: { $regex: q, $options: 'i' } },
+      ],
+    })
+      .select('name email avatar friends friendRequests followers following blockedUsers')
+      .limit(10);
+
+    res.status(200).json({
+      success: true,
+      data: results.map((user) => ({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        isFriend: user.friends.some((id) => id.equals(currentUserId)),
+        isFollowing: user.followers.some((id) => id.equals(currentUserId)),
+        followsYou: user.following.some((id) => id.equals(currentUserId)),
+        hasPendingRequestFrom: user.friendRequests.received.some((id) => id.equals(currentUserId)),
+        hasPendingRequestTo: user.friendRequests.sent.some((id) => id.equals(currentUserId)),
+        isBlocked: user.blockedUsers.some((id) => id.equals(currentUserId)),
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // @route   POST /api/friends/request
 // @desc    Send friend request
@@ -211,6 +264,42 @@ router.get('/sent', authenticate, async (req: Request, res: Response, next: Next
   }
 });
 
+// @route   GET /api/friends/followers
+// @desc    Get followers list
+// @access  Private
+router.get('/followers', authenticate, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = (req as any).user['id'];
+    const user = await User.findById(userId).populate('followers', 'name email avatar');
+
+    res.status(200).json({
+      success: true,
+      count: user?.followers.length || 0,
+      data: user?.followers || []
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @route   GET /api/friends/following
+// @desc    Get following list
+// @access  Private
+router.get('/following', authenticate, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = (req as any).user['id'];
+    const user = await User.findById(userId).populate('following', 'name email avatar');
+
+    res.status(200).json({
+      success: true,
+      count: user?.following.length || 0,
+      data: user?.following || []
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // @route   DELETE /api/friends/:userId
 // @desc    Remove friend
 // @access  Private
@@ -244,6 +333,65 @@ router.delete('/:userId', authenticate, [
       success: true,
       message: 'Friend removed successfully'
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @route   POST /api/friends/follow/:userId
+// @desc    Follow a user
+// @access  Private
+router.post('/follow/:userId', authenticate, [
+  param('userId').isMongoId().withMessage('Please provide a valid user ID')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = (req as any).user['id'];
+
+    if (currentUserId === userId) {
+      throw new CustomError('Cannot follow yourself', 400);
+    }
+
+    const [currentUser, targetUser] = await Promise.all([
+      User.findById(currentUserId),
+      User.findById(userId)
+    ]);
+
+    if (!currentUser || !targetUser) {
+      throw new CustomError('User not found', 404);
+    }
+
+    if (currentUser.blockedUsers.includes(userId as any) || targetUser.blockedUsers.includes(currentUserId as any)) {
+      throw new CustomError('Cannot follow a blocked user', 400);
+    }
+
+    if (currentUser.following.includes(userId as any)) {
+      throw new CustomError('Already following this user', 400);
+    }
+
+    await User.findByIdAndUpdate(currentUserId, { $addToSet: { following: userId } });
+    await User.findByIdAndUpdate(userId as any, { $addToSet: { followers: currentUserId } });
+
+    res.status(200).json({ success: true, message: 'Now following user' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// @route   DELETE /api/friends/follow/:userId
+// @desc    Unfollow a user
+// @access  Private
+router.delete('/follow/:userId', authenticate, [
+  param('userId').isMongoId().withMessage('Please provide a valid user ID')
+], async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = (req as any).user['id'];
+
+    await User.findByIdAndUpdate(currentUserId, { $pull: { following: userId } });
+    await User.findByIdAndUpdate(userId as any, { $pull: { followers: currentUserId } });
+
+    res.status(200).json({ success: true, message: 'Unfollowed user' });
   } catch (error) {
     next(error);
   }
